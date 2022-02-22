@@ -184,5 +184,5 @@ class PurePNG2dimEngagement(Engagement2dim):
         V_M = self.missile.V
         omega = self.rel_kin.omega
 
-        a_M = self.pure_png.evaluate(V_M, omega)
+        a_M = self.pure_png.forward(V_M, omega)
         self.missile.forward(np.array([0, a_M]))
