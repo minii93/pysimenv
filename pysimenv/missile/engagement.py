@@ -4,7 +4,7 @@ from typing import Optional, Tuple
 from pysimenv.core.system import MultipleSystem
 from pysimenv.missile.model import PlanarMissile2dof, PlanarManVehicle2dof
 from pysimenv.missile.guidance import PurePNG2dim
-from pysimenv.missile.util import RelKin2dim, CloseDistCond, miss_distance
+from pysimenv.missile.util import RelKin2dim, CloseDistCond, miss_distance, closest_instant, lin_interp
 
 
 class Engagement2dim(MultipleSystem):
@@ -71,13 +71,30 @@ class Engagement2dim(MultipleSystem):
         d_miss = miss_distance(p_M, p_T)
         return d_miss
 
+    def state_on_closest_instant(self):
+        x_M = self.missile.history('x')
+        x_T = self.target.history('x')
+
+        p_M = x_M[:, 0:2]
+        p_T = x_T[:, 0:2]
+        index_close, xi_close = closest_instant(p_M, p_T)
+        x_M_close = lin_interp(x_M[index_close], x_M[index_close + 1], xi_close)
+        x_T_close = lin_interp(x_T[index_close], x_T[index_close + 1], xi_close)
+        return x_M_close, x_T_close
+
     def report(self):
         self.missile.report()
         if self.flag == 1:
             print("[engagement] The target has been intercepted!")
         else:
             print("[engagement] The target has been missed!")
+
+        d_miss = self.miss_distance()
+        x_M_close, x_T_close = self.state_on_closest_instant()
+
         print("[engagement] Miss distance: {:.6f} (m)".format(self.miss_distance()))
+        print("[engagement] Missile state on the closest instant [m, m, m/s, deg]: \n" + str(x_M_close))
+        print("[engagement] Target state on the closest instant [m, m, m/s, deg]: \n" + str(x_T_close))
 
     def plot(self):
         fig_axs = dict()
