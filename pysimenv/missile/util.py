@@ -1,4 +1,5 @@
 import numpy as np
+from typing import Tuple
 from pysimenv.core.base import BaseFunction
 from pysimenv.common.util import distance_traj_segment
 
@@ -95,7 +96,38 @@ def miss_distance(p_M: np.ndarray, p_T: np.ndarray, search_range: int = 1) -> fl
         p1 = p_M[i + 1, :]
         q0 = p_T[i, :]
         q1 = p_T[i + 1, :]
-        d_miss = min(d_miss, distance_traj_segment(p0, p1, q0, q1))
+
+        d_, _ = distance_traj_segment(p0, p1, q0, q1)
+        d_miss = min(d_miss, d_)
     return d_miss
 
 
+def closest_instant(p_M: np.ndarray, p_T: np.ndarray, search_range: int = 1) -> Tuple[int, float]:
+    num_sample = p_M.shape[0]
+    d = np.linalg.norm(p_T - p_M, axis=1)
+    index_c = np.argmin(d)
+    d_miss = d[index_c]
+
+    index_min = max(index_c - search_range, 0)
+    index_max = min(index_c + search_range, num_sample - 1)
+
+    index_close = index_min
+    xi_close = 0.
+    for i in range(index_min, index_max):
+        p0 = p_M[i, :]
+        p1 = p_M[i + 1, :]
+        q0 = p_T[i, :]
+        q1 = p_T[i + 1, :]
+
+        d_, xi_ = distance_traj_segment(p0, p1, q0, q1)
+        if d_ < d_miss:
+            index_close = i
+            xi_close = xi_
+            d_miss = d_
+
+    return index_close, xi_close
+
+
+def lin_interp(x_i: np.ndarray, x_f: np.ndarray, xi: float) -> np.ndarray:
+    x = x_i + xi*(x_f - x_i)
+    return x

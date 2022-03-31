@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Union
+from typing import Union, Tuple
 from scipy.optimize import minimize_scalar
 
 
@@ -18,7 +18,7 @@ def wrap_to_pi(angle: Union[float, np.ndarray]):
     return angle
 
 
-def distance_traj_segment(p0: ArrayType, p1: ArrayType, q0: ArrayType, q1: ArrayType):
+def distance_traj_segment(p0: ArrayType, p1: ArrayType, q0: ArrayType, q1: ArrayType) -> Tuple[float, float]:
     """
     A function finding the distance between two trajectory segements
     :param p0: the initial point of trajectory segment 1
@@ -32,10 +32,11 @@ def distance_traj_segment(p0: ArrayType, p1: ArrayType, q0: ArrayType, q1: Array
     q0_ = np.array(q0)
     q1_ = np.array(q1)
 
-    def sq_distance(t):
-        p = p0_ + t*(p1_ - p0_)
-        q = q0_ + t*(q1_ - q0_)
+    def sq_distance(xi: float):
+        p = p0_ + xi * (p1_ - p0_)
+        q = q0_ + xi * (q1_ - q0_)
         return np.sum((p - q)**2)
     res = minimize_scalar(sq_distance, bounds=(0, 1), method='bounded')
     d = np.sqrt(res.fun)
-    return d
+    xi_opt = res.x
+    return d, xi_opt
