@@ -92,9 +92,13 @@ class Engagement2dim(MultipleSystem):
         d_miss = self.miss_distance()
         x_M_close, x_T_close = self.state_on_closest_instant()
 
-        print("[engagement] Miss distance: {:.6f} (m)".format(self.miss_distance()))
-        print("[engagement] Missile state on the closest instant [m, m, m/s, deg]: \n" + str(x_M_close))
-        print("[engagement] Target state on the closest instant [m, m, m/s, deg]: \n" + str(x_T_close))
+        print("[engagement] Miss distance: {:.6f} (m)".format(d_miss))
+        print("[engagement] Missile state on the closest instant: {:.2f}(m), {:.2f}(m), {:.2f}(m/s), {:.2f}(deg) \n".
+              format(x_M_close[0], x_M_close[1], x_M_close[2], np.rad2deg(x_M_close[3]))
+              )
+        print("[engagement] Target state on the closest instant: {:.2f}(m), {:.2f}(m), {:.2f}(m/s), {:.2f}(deg) \n".
+              format(x_T_close[0], x_T_close[1], x_T_close[2], np.rad2deg(x_T_close[3]))
+              )
 
     def plot(self):
         fig_axs = dict()
