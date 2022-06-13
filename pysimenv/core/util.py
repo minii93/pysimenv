@@ -149,25 +149,18 @@ class Logger:
     def keys(self):
         return self.data.keys()
 
-    def save(self, h5file=None, data_group='/'):
-        if h5file is None:
-            if not os.path.isdir('./data'):
-                os.mkdir('./data')
-            h5file = h5py.File('./data/log.hdf5', 'w')
-
+    def save(self, h5file=None, data_group=''):
         logged_data = self.get()
-        with h5file:
+        if logged_data is not None:
             for key, value in logged_data.items():
-                h5file[data_group + key] = value
+                h5file[data_group + '/' + key] = value
 
-    def load(self, h5file=None, data_group='/'):
-        self.clear()
-        if h5file is None:
-            h5file = h5py.File('./data/log.hdf5', 'r')
-
-        with h5file:
+    def load(self, h5file=None, data_group=''):
+        try:
             for key, value in h5file[data_group].items():
                 self.data[key] = list(value)
+        except KeyError:
+            pass
 
     @staticmethod
     def test():

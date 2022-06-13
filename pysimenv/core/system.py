@@ -1,5 +1,7 @@
 from abc import ABC
 
+import h5py
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import Union, Tuple
@@ -144,13 +146,28 @@ class BaseSystem(SimObject):
         print("== Report for {} ==".format(self.name))
         return
 
-    def save(self, h5file=None, data_group='/'):
-        data_group = data_group + self.name + '/'
+    def save(self, h5file=None, data_group=''):
+        data_group = data_group + '/' + self.name
         self.logger.save(h5file, data_group)
 
-    def load(self, h5file=None, data_group='/'):
-        data_group = data_group + self.name + '/'
+    def load(self, h5file=None, data_group=''):
+        data_group = data_group + '/' + self.name
         self.logger.load(h5file, data_group)
+
+    def save_log_file(self, save_dir=None):
+        if save_dir is None:
+            save_dir = './data/'
+        os.makedirs(save_dir, exist_ok=True)
+        file = h5py.File(save_dir + 'log.hdf5', 'w')
+        self.save(file)
+        file.close()
+
+    def load_log_file(self, save_dir=None):
+        if save_dir is None:
+            save_dir = './data/'
+        file = h5py.File(save_dir + 'log.hdf5', 'r')
+        self.load(file)
+        file.close()
 
     @property
     def state(self) -> Union[list, np.ndarray]:
@@ -387,7 +404,7 @@ class MultiStateDynSystem(BaseSystem):
 class MultipleSystem(BaseSystem, ABC):
     def __init__(self):
         super(MultipleSystem, self).__init__()
-        self.name = "multiple_system"
+        self.name = "model"
         self.sim_obj_list = []
         self.sim_obj_num = 0
 
@@ -445,6 +462,20 @@ class MultipleSystem(BaseSystem, ABC):
                 self.flag.append(sim_obj.flag)
 
         return to_stop, self.flag
+
+    # implement
+    def save(self, h5file=None, data_group=''):
+        super().save(h5file, data_group)
+        for sim_obj in self.sim_obj_list:
+            if isinstance(sim_obj, BaseSystem):
+                sim_obj.save(h5file, data_group + '/' + self.name)
+
+    # implement
+    def load(self, h5file=None, data_group=''):
+        super().load(h5file, data_group)
+        for sim_obj in self.sim_obj_list:
+            if isinstance(sim_obj, BaseSystem):
+                sim_obj.load(h5file, data_group + '/' + self.name)
 
 
 if __name__ == "__main__":

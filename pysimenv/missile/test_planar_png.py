@@ -15,6 +15,7 @@ missile = PlanarMissile2dof(
 target = PlanarNonManVehicle2dof(
     [0., 0., 20., 0.]
 )
+missile.name = "missile"
 target.name = "target"
 
 # Method 1
@@ -24,5 +25,8 @@ simulator.propagate(dt, final_time, True)
 
 model.plot()
 model.report()
+model.save_log_file('./data/planar_png/')
+# model.load_log_file('./data/planar_png/')
+model.plot()
 
 plt.show()
