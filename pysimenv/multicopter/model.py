@@ -85,7 +85,42 @@ class QuadrotorDynModel(MultiStateDynSystem):
         return fig
 
 
-if __name__ == "__main__":
+class QuadXThrustModel(object):
+    def __init__(self, d_phi: float, d_theta: float, c_tau_f: float):
+        self.d_phi = d_phi
+        self.d_theta = d_theta
+        self.c_tau_f = c_tau_f
+        self.R_u = np.array([
+            [1., 1., 1., 1.],
+            [-d_phi/2., d_phi/2., d_phi/2., -d_phi/2.],
+            [d_theta/2., -d_theta/2., d_theta/2., -d_theta/2.],
+            [c_tau_f, c_tau_f, -c_tau_f, -c_tau_f]
+        ])  # mapping matrix
+
+    def convert(self, f_s: np.ndarray) -> np.ndarray:
+        u = self.R_u.dot(f_s)
+        return u
+
+
+class QuadXMixer(object):
+    def __init__(self, d_phi: float, d_theta: float, c_tau_f: float):
+        self.d_phi = d_phi
+        self.d_theta = d_theta
+        self.c_tau_f = c_tau_f
+        self.R_u = np.array([
+            [1., 1., 1., 1.],
+            [-d_phi/2., d_phi/2., d_phi/2., -d_phi/2.],
+            [d_theta/2., -d_theta/2., d_theta/2., -d_theta/2.],
+            [c_tau_f, c_tau_f, -c_tau_f, -c_tau_f]
+        ])  # mapping matrix
+        self.R_u_inv = np.linalg.inv(self.R_u)
+
+    def convert(self, u_d: np.ndarray) -> np.ndarray:
+        f_s = self.R_u_inv.dot(u_d)
+        return f_s
+
+
+def main():
     print("== Test for QuadrotorDynModel ==")
     m = 4.34
     J = np.diag([0.0820, 0.0845, 0.1377])
@@ -106,4 +141,8 @@ if __name__ == "__main__":
     quadrotor.default_plot()
     quadrotor.plot_euler_angles()
     plt.show()
+
+
+if __name__ == "__main__":
+    main()
 
