@@ -25,10 +25,7 @@ class QuadrotorDynModel(MultiStateDynSystem):
         self.J = J
         self.grav_accel = FlatEarthEnv.grav_accel*self.e3
 
-        def rotation_correction_fun(R_: np.ndarray) -> np.ndarray:
-            is_orthogonal = orientation.check_orthogonality(R_)
-            return R_ if is_orthogonal else orientation.correct_orthogonality(R_)
-        self.state_var_list[2].attach_correction_fun(rotation_correction_fun)
+        self.state_var_list[2].attach_correction_fun(orientation.correct_orthogonality)
 
     # override
     def derivative(self, p, v, R, omega, u):
@@ -44,8 +41,8 @@ class QuadrotorDynModel(MultiStateDynSystem):
         tau = u[1:4]
 
         p_dot = v
-        v_dot = self.grav_accel - 1/self.m*(f*np.dot(R, self.e3))
-        R_dot = np.dot(R, self.hat(omega))
+        v_dot = self.grav_accel - 1./self.m*(f*np.dot(R, self.e3))
+        R_dot = np.matmul(R, self.hat(omega))
         omega_dot = np.linalg.solve(self.J, -np.cross(omega, np.dot(self.J, omega)) + tau)
 
         return [p_dot, v_dot, R_dot, omega_dot]
