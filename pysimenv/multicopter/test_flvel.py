@@ -1,8 +1,7 @@
 import numpy as np
 from pysimenv.core.system import MultipleSystem
-from pysimenv.multicopter.model import QuadrotorDynModel
+from pysimenv.multicopter.model import MulticopterDynamic
 from pysimenv.multicopter.control import FLVelControl
-from pysimenv.common.orientation import rotation_to_euler_angles
 from pysimenv.core.simulator import Simulator
 
 
@@ -17,7 +16,7 @@ class FLVelTracking(MultipleSystem):
         vel = np.zeros(3)
         R_iv = np.identity(3)
         omega = np.zeros(3)
-        self.quadrotor = QuadrotorDynModel([pos, vel, R_iv, omega], m, J)
+        self.quadrotor = MulticopterDynamic([pos, vel, R_iv, omega], m, J)
 
         k_p_att = np.array([1600., 1600., 1600])
         k_d_att = np.array([80., 80., 80])
@@ -28,14 +27,11 @@ class FLVelTracking(MultipleSystem):
 
     # implement
     def forward(self, v_d: np.ndarray = np.zeros(3)):
-        quad_states = self.quadrotor.state
-        v = quad_states[1]
-        R = quad_states[2]
-        omega = quad_states[3]
+        v = self.quadrotor.vel
+        eta = self.quadrotor.euler_ang
+        omega = self.quadrotor.ang_vel
 
-        eta = np.array(rotation_to_euler_angles(np.transpose(R)))
         u = self.vel_control.forward(v, eta, omega, v_d)
-
         self.quadrotor.forward(u)
 
 

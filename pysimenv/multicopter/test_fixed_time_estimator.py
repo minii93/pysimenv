@@ -2,10 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pysimenv.core.system import MultipleSystem
 from pysimenv.core.simulator import Simulator
-from pysimenv.multicopter.model import QuadrotorDynModel, QuadXThrustModel, QuadXMixer, ActuatorFault
+from pysimenv.multicopter.model import MulticopterDynamic, QuadXThrustModel, QuadXMixer, ActuatorFault
 from pysimenv.multicopter.control import QuaternionPosControl, QuaternionAttControl
 from pysimenv.multicopter.estimator import FixedTimeFaultEstimator
-from pysimenv.common.orientation import rotation_to_quaternion, rotation_to_euler_angles
 
 
 class Model(MultipleSystem):
@@ -20,7 +19,7 @@ class Model(MultipleSystem):
         vel_0 = np.zeros(3)
         R_iv_0 = np.identity(3)
         omega_0 = np.zeros(3)
-        self.quadrotor_dyn = QuadrotorDynModel([pos_0, vel_0, R_iv_0, omega_0], m, J)
+        self.quadrotor_dyn = MulticopterDynamic([pos_0, vel_0, R_iv_0, omega_0], m, J)
 
         # Quadrotor thrust model (QuadX configuration)
         d_phi = 0.15
@@ -72,14 +71,15 @@ class Model(MultipleSystem):
             self.quadrotor_dyn, self.actuator_fault, self.att_control, self.pos_control, self.estimator])
 
     def forward(self, p_d: np.ndarray, v_d: np.ndarray = np.zeros(3)) -> None:
-        quad_state = self.quadrotor_dyn.state
+        p = self.quadrotor_dyn.pos
+        v = self.quadrotor_dyn.vel
+        q = self.quadrotor_dyn.quaternion
+        omega = self.quadrotor_dyn.ang_vel
 
         # position control
-        p, v, R_iv, omega = quad_state[:]
         F_m, q_d, omega_d = self.pos_control.forward(p, v, p_d, v_d)
 
         # attitude control
-        q = rotation_to_quaternion(np.transpose(R_iv))
         M = self.att_control.forward(q, omega, q_d, omega_d)
 
         # Mixing
@@ -87,9 +87,7 @@ class Model(MultipleSystem):
 
         # Fault estimation
         v_z = v[2]
-        eta = np.array(
-            rotation_to_euler_angles(np.transpose(R_iv))
-        )
+        eta = self.quadrotor_dyn.euler_ang
         self.estimator.forward(
             x=np.array([v_z, omega[0], omega[1], omega[2]]), eta=eta, f_s=f_s)
         delta_hat = self.estimator.delta_hat
@@ -103,9 +101,7 @@ class Model(MultipleSystem):
         J = self.quadrotor_dyn.J
         J_x, J_y, J_z = J[0, 0], J[1, 1], J[2, 2]
         R_u = self.quadrotor_thrust.R_u
-        eta = np.array(
-            rotation_to_euler_angles(np.transpose(R_iv))
-        )
+
         phi, theta = eta[0:2]
         B = np.diag([
             np.cos(phi)*np.cos(theta)/m, 1./J_x, 1./J_y, 1./J_z

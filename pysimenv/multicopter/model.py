@@ -8,7 +8,7 @@ from pysimenv.common.model import FlatEarthEnv
 from pysimenv.common import orientation
 
 
-class QuadrotorDynModel(MultiStateDynSystem):
+class MulticopterDynamic(MultiStateDynSystem):
     e3 = np.array([0., 0., 1.], dtype=np.float32)
 
     def __init__(self, initial_states: Union[list, tuple], m: float, J: np.ndarray):
@@ -21,7 +21,7 @@ class QuadrotorDynModel(MultiStateDynSystem):
         :param m: mass, float
         :param J: inertia of mass, (3, 3) numpy array
         """
-        super(QuadrotorDynModel, self).__init__(initial_states)
+        super(MulticopterDynamic, self).__init__(initial_states)
         self.m = m
         self.J = J
         self.grav_accel = FlatEarthEnv.grav_accel*self.e3
@@ -194,7 +194,7 @@ def main():
     omega = np.array([0., 0., 0.1])
     initial_states_ = (pos, vel, R, omega)
 
-    quadrotor = QuadrotorDynModel(initial_states_, m, J)
+    quadrotor = MulticopterDynamic(initial_states_, m, J)
 
     u = np.array([45., 0., 0., 0.])
 
