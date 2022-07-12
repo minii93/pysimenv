@@ -5,6 +5,62 @@ from pysimenv.core.simulator import Simulator
 from pysimenv.multicopter.model import MulticopterDynamic, QuadXThrustModel, QuadXMixer, ActuatorFault
 from pysimenv.multicopter.control import QuaternionPosControl, QuaternionAttControl
 from pysimenv.multicopter.estimator import FixedTimeFaultEstimator
+from pysimenv.common.model import FlatEarthEnv, Integrator
+
+
+class ISMC(MultipleSystem):
+    """
+    Integral sliding mode control
+    """
+    def __init__(self, x_b_0: np.ndarray, N: np.ndarray, eps_1: float, eps_2: float,
+                 J: np.ndarray, m: float):
+        super(ISMC, self).__init__()
+        self.x_b_integrator = Integrator(x_b_0)  # integrator for the baseline state
+        self.N = N.copy()
+        self.eps_1 = eps_1
+        self.eps_2 = eps_2
+        self.J = J.copy()
+        self.m = m
+        self.s = np.zeros(4)
+        self.u_f = np.zeros(4)
+
+        self.attach_sim_objects([self.x_b_integrator])
+
+    def forward(self, x_d: np.ndarray, x: np.ndarray, eta: np.ndarray, u_b: np.ndarray, delta_hat: np.ndarray) -> np.ndarray:
+        """
+        :param x_d: desired state
+        :param x: actual state (v_z, p, q, r)
+        :param eta: Euler angles (phi, theta, psi)
+        :param u_b: baseline control input
+        :param delta_hat: estimated uncertainty
+        :return:
+        """
+        # update the baseline state
+        phi, theta = eta[0:2]
+        p, q, r = x[1:4]
+        J_x, J_y, J_z = self.J[0, 0], self.J[1, 1], self.J[2, 2]
+        f = np.array([
+            FlatEarthEnv.grav_accel,
+            (J_y - J_z)/J_x*q*r,
+            (J_z - J_x)/J_y*p*r,
+            (J_z - J_y)/J_z*p*q
+        ])
+        B = np.diag([
+            -np.cos(phi)*np.cos(theta)/self.m, 1./J_x, 1./J_y, 1./J_z
+        ])
+        x_b_dot = f + B.dot(u_b)
+        self.x_b_integrator.forward(x_b_dot)
+
+        # calculate the control input
+        x_b = self.x_b_integrator.state
+        s = self.N.dot(x_d - x_b)
+        sigma = 2*self.eps_1/np.pi*np.arctan(np.linalg.norm(s))*s
+        self.u_f = -np.linalg.solve(np.matmul(self.N, B), self.N.dot(delta_hat) + self.eps_1*sigma + self.eps_2*s)
+        return self.u_f.copy()
+
+    # implement
+    def _output(self) -> np.ndarray:
+        return self.u_f.copy()
 
 
 class Model(MultipleSystem):
@@ -67,8 +123,13 @@ class Model(MultipleSystem):
             m=m, J=J, R_u=self.quadrotor_thrust.R_u
         )
 
+        # Integral Sliding Mode Controller
+        self.ismc = ISMC(
+            x_b_0=np.zeros(4), N=np.diag([1., 1., 1., 1.]), eps_1=0.5, eps_2=2.5, J=J, m=m)
+
         self.attach_sim_objects([
-            self.quadrotor_dyn, self.actuator_fault, self.att_control, self.pos_control, self.estimator])
+            self.quadrotor_dyn, self.actuator_fault, self.att_control, self.pos_control,
+            self.estimator, self.ismc])
 
     def forward(self, p_d: np.ndarray, v_d: np.ndarray = np.zeros(3)) -> None:
         p = self.quadrotor_dyn.pos
@@ -88,12 +149,18 @@ class Model(MultipleSystem):
         # Fault estimation
         v_z = v[2]
         eta = self.quadrotor_dyn.euler_ang
-        self.estimator.forward(
-            x=np.array([v_z, omega[0], omega[1], omega[2]]), eta=eta, f_s=f_s)
+        x = np.array([v_z, omega[0], omega[1], omega[2]])
+        self.estimator.forward(x, eta, f_s)
         delta_hat = self.estimator.delta_hat
 
         f_s_star = self.actuator_fault.forward(f_s)
-        u = self.quadrotor_thrust.convert(f_s_star)
+        u_b = self.quadrotor_thrust.convert(f_s_star)  # baseline control input
+
+        # Uncertainty compensation
+        v_z_d = v_d[2]
+        x_d = np.array([v_z_d, omega_d[0], omega[1], omega[2]])
+        u_f = self.ismc.forward(x_d, x, eta, u_b, delta_hat)
+        u = u_b + u_f
         self.quadrotor_dyn.forward(u)
 
         # true uncertainty
@@ -104,7 +171,7 @@ class Model(MultipleSystem):
 
         phi, theta = eta[0:2]
         B = np.diag([
-            np.cos(phi)*np.cos(theta)/m, 1./J_x, 1./J_y, 1./J_z
+            -np.cos(phi)*np.cos(theta)/m, 1./J_x, 1./J_y, 1./J_z
         ])
         delta = B.dot(R_u.dot(f_s_star - f_s))
 
@@ -158,7 +225,7 @@ def main():
     model = Model()
     simulator = Simulator(model)
     simulator.propagate(0.01, 20., True, p_d, v_d)
-    # model.quadrotor_dyn.default_plot(show=False)
+    model.quadrotor_dyn.default_plot(show=False)
     model.plot_actuator_log(show=False)
     model.plot_uncertainty(show=True)
 
