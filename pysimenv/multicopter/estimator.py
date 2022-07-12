@@ -34,13 +34,13 @@ class FixedTimeFaultEstimator(MultiStateDynSystem):
         p, q, r = x[1:4]
         J_x, J_y, J_z = self.J[0, 0], self.J[1, 1], self.J[2, 2]
         f = np.array([
-            -FlatEarthEnv.grav_accel,
+            FlatEarthEnv.grav_accel,
             (J_y - J_z)/J_x*q*r,
             (J_z - J_x)/J_y*p*r,
             (J_x - J_y)/J_z*p*q
         ])
         B = np.diag([
-            np.cos(phi)*np.cos(theta)/self.m, 1./J_x, 1./J_y, 1./J_z
+            -np.cos(phi)*np.cos(theta)/self.m, 1./J_x, 1./J_y, 1./J_z
         ])
 
         e_d = z_1 - x
