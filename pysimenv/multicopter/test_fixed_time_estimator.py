@@ -5,7 +5,7 @@ from pysimenv.core.simulator import Simulator
 from pysimenv.multicopter.model import MulticopterDynamic, QuadXThrustModel, QuadXMixer, ActuatorFault
 from pysimenv.multicopter.control import QuaternionPosControl, QuaternionAttControl
 from pysimenv.multicopter.estimator import FixedTimeFaultEstimator
-from pysimenv.common.model import FlatEarthEnv, Integrator
+from pysimenv.common.model import FlatEarthEnv, Integrator, SignalGenerator
 
 
 class ISMC(MultipleSystem):
@@ -43,7 +43,7 @@ class ISMC(MultipleSystem):
             FlatEarthEnv.grav_accel,
             (J_y - J_z)/J_x*q*r,
             (J_z - J_x)/J_y*p*r,
-            (J_z - J_y)/J_z*p*q
+            (J_x - J_y)/J_z*p*q
         ])
         B = np.diag([
             -np.cos(phi)*np.cos(theta)/self.m, 1./J_x, 1./J_y, 1./J_z
@@ -54,18 +54,49 @@ class ISMC(MultipleSystem):
         # calculate the control input
         x_b = self.x_b_integrator.state
         s = self.N.dot(x_d - x_b)
-        sigma = 2*self.eps_1/np.pi*np.arctan(np.linalg.norm(s))*s
+        sigma = 2/np.pi*np.arctan(np.linalg.norm(s))*s
         self.u_f = -np.linalg.solve(np.matmul(self.N, B), self.N.dot(delta_hat) + self.eps_1*sigma + self.eps_2*s)
+
+        self.logger.append(t=self.time, s=s)
         return self.u_f.copy()
 
     # implement
     def _output(self) -> np.ndarray:
         return self.u_f.copy()
 
+    def plot_sliding_value(self, show=False):
+        t = self.history('t')
+        s = self.history('s')
+
+        fig, ax = plt.subplots(figsize=(8, 6))
+        for i in range(4):
+            ax.plot(t, s[:, i], label="s_" + str(i))
+        ax.set_xlabel("Time (s)")
+        ax.set_ylabel("Sliding value")
+        ax.grid()
+        ax.legend()
+
+        if show:
+            plt.show()
+        else:
+            plt.draw()
+            plt.pause(0.01)
+
 
 class Model(MultipleSystem):
     def __init__(self):
         super(Model, self).__init__()
+
+        # Trajectory
+        T = 15.  # (s)
+        self.pos_trajectory = SignalGenerator(
+            shaping_fun=lambda t: np.array([np.sin(2*np.pi*t/T), np.cos(2*np.pi*t/T), -1.])
+        )
+        self.vel_trajectory = SignalGenerator(
+            shaping_fun=lambda t: np.array([
+                2*np.pi/T*np.cos(2*np.pi*t/T), -2*np.pi/T*np.sin(2*np.pi*t/T), 0.
+            ])
+        )
 
         # Quadrotor dynamic model
         m = 1.212
@@ -88,12 +119,16 @@ class Model(MultipleSystem):
 
         # Actuator fault model
         self.actuator_fault = ActuatorFault(
-            t_list=[0., 10.],
+            t_list=[0., 12., 25., 38.],
             alp_list=[
                 np.array([1., 1., 1., 1.]),
-                np.array([0.7, 1., 1., 1.])
+                np.array([0.7, 1., 1., 1.]),
+                np.array([0.7, 1., 0.6, 1.]),
+                np.array([0.7, 0.8, 0.6, 0.9])
             ],
             rho_list=[
+                np.zeros(4),
+                np.zeros(4),
                 np.zeros(4),
                 np.zeros(4)
             ]
@@ -119,8 +154,8 @@ class Model(MultipleSystem):
 
         self.estimator = FixedTimeFaultEstimator(
             initial_states=[z_1_0, z_2_0],
-            alpha=0.733, beta=1.285, k_1=-18., k_2=-100.,
-            m=m, J=J, R_u=self.quadrotor_thrust.R_u
+            alpha=0.733, beta=1.285, k_1=20., k_2=100.,
+            m=m, J=J
         )
 
         # Integral Sliding Mode Controller
@@ -128,55 +163,58 @@ class Model(MultipleSystem):
             x_b_0=np.zeros(4), N=np.diag([1., 1., 1., 1.]), eps_1=0.5, eps_2=2.5, J=J, m=m)
 
         self.attach_sim_objects([
+            self.pos_trajectory, self.vel_trajectory,
             self.quadrotor_dyn, self.actuator_fault, self.att_control, self.pos_control,
             self.estimator, self.ismc])
 
-    def forward(self, p_d: np.ndarray, v_d: np.ndarray = np.zeros(3)) -> None:
+    def forward(self) -> None:
+        p_d = self.pos_trajectory.forward()
+        v_d = self.vel_trajectory.forward()
+
         p = self.quadrotor_dyn.pos
         v = self.quadrotor_dyn.vel
         q = self.quadrotor_dyn.quaternion
         omega = self.quadrotor_dyn.ang_vel
 
-        # position control
+        # Baseline control (position)
         F_m, q_d, omega_d = self.pos_control.forward(p, v, p_d, v_d)
 
-        # attitude control
+        # Baseline control (attitude)
         M = self.att_control.forward(q, omega, q_d, omega_d)
-
-        # Mixing
-        f_s = self.quadrotor_mixer.convert(np.array([F_m, M[0], M[1], M[2]]))
-
-        # Fault estimation
-        v_z = v[2]
-        eta = self.quadrotor_dyn.euler_ang
-        x = np.array([v_z, omega[0], omega[1], omega[2]])
-        self.estimator.forward(x, eta, f_s)
-        delta_hat = self.estimator.delta_hat
-
-        f_s_star = self.actuator_fault.forward(f_s)
-        u_b = self.quadrotor_thrust.convert(f_s_star)  # baseline control input
+        u_b = np.array([F_m, M[0], M[1], M[2]])
 
         # Uncertainty compensation
         v_z_d = v_d[2]
-        x_d = np.array([v_z_d, omega_d[0], omega[1], omega[2]])
+        v_z = v[2]
+        x_d = np.array([v_z_d, omega_d[0], omega_d[1], omega_d[2]])
+        x = np.array([v_z, omega[0], omega[1], omega[2]])
+        eta = self.quadrotor_dyn.euler_ang
+        delta_hat = self.estimator.delta_hat
         u_f = self.ismc.forward(x_d, x, eta, u_b, delta_hat)
         u = u_b + u_f
-        self.quadrotor_dyn.forward(u)
+
+        # actuator fault
+        f_s = self.quadrotor_mixer.convert(u)
+        f_s_star = self.actuator_fault.forward(f_s)
+        u_star = self.quadrotor_thrust.convert(f_s_star)
+        self.quadrotor_dyn.forward(u_star)
+
+        # Fault estimation
+        self.estimator.forward(x, eta, u)
 
         # true uncertainty
         m = self.quadrotor_dyn.m
         J = self.quadrotor_dyn.J
         J_x, J_y, J_z = J[0, 0], J[1, 1], J[2, 2]
-        R_u = self.quadrotor_thrust.R_u
 
         phi, theta = eta[0:2]
         B = np.diag([
             -np.cos(phi)*np.cos(theta)/m, 1./J_x, 1./J_y, 1./J_z
         ])
-        delta = B.dot(R_u.dot(f_s_star - f_s))
+        delta = B.dot(u_star - u)
 
         self.logger.append(t=self.time, f_s=f_s, f_s_star=f_s_star,
-                           delta=delta, delta_hat=delta_hat)
+                           delta=delta, delta_hat=delta_hat, p_d=p_d, p=p)
 
     def plot_actuator_log(self, show=False):
         t = self.history('t')
@@ -184,14 +222,15 @@ class Model(MultipleSystem):
         f_s_star = self.history('f_s_star')
 
         fig, ax = plt.subplots(4, 1, figsize=(8, 6))
-        ylabel_list = ["Motor 1", "Motor 2", "Motor 3", "Motor 4"]
+        ylabels = ["Motor 1 (N)", "Motor 2 (N)", "Motor 3 (N)", "Motor 4 (N)"]
         for i in range(4):
             ax[i].plot(t, f_s[:, i], label="Command")
             ax[i].plot(t, f_s_star[:, i], label="Actual", linestyle='--')
             ax[i].set_xlabel("Time (s)")
-            ax[i].set_ylabel(ylabel_list[i])
+            ax[i].set_ylabel(ylabels[i])
             ax[i].grid()
             ax[i].legend()
+        fig.suptitle("Actuator status")
         if show:
             plt.show()
         else:
@@ -204,14 +243,36 @@ class Model(MultipleSystem):
         delta_hat = self.history('delta_hat')
 
         fig, ax = plt.subplots(4, 1, figsize=(8, 6))
-        ylabel_list = ["Delta v_z", "Delta p", "Delta q", "Delta r"]
+        ylabels = ["Delta v_z", "Delta p", "Delta q", "Delta r"]
         for i in range(4):
             ax[i].plot(t, delta[:, i], label="Actual")
             ax[i].plot(t, delta_hat[:, i], label="Estimated", linestyle='--')
             ax[i].set_xlabel("Time (s)")
-            ax[i].set_ylabel(ylabel_list[i])
+            ax[i].set_ylabel(ylabels[i])
             ax[i].grid()
             ax[i].legend()
+        fig.suptitle("Uncertainty estimation")
+        if show:
+            plt.show()
+        else:
+            plt.draw()
+            plt.pause(0.01)
+
+    def plot_tracking_performance(self, show=False):
+        t = self.history('t')
+        p_d = self.history('p_d')
+        p = self.history('p')
+
+        fig, ax = plt.subplots(3, 1, figsize=(8, 6))
+        ylabels = ["x (m)", "y (m)", "z (m)"]
+        for i in range(3):
+            ax[i].plot(t, p_d[:, i], label="Desired")
+            ax[i].plot(t, p[:, i], label="Actual")
+            ax[i].set_xlabel("Time (s)")
+            ax[i].set_ylabel(ylabels[i])
+            ax[i].grid()
+            ax[i].legend()
+        fig.suptitle("Trajectory")
         if show:
             plt.show()
         else:
@@ -220,12 +281,11 @@ class Model(MultipleSystem):
 
 
 def main():
-    p_d = np.array([0., 0., 1.])
-    v_d = np.array([0., 0., 0.])
     model = Model()
     simulator = Simulator(model)
-    simulator.propagate(0.01, 20., True, p_d, v_d)
-    model.quadrotor_dyn.default_plot(show=False)
+    simulator.propagate(0.01, 60., True)
+    # model.quadrotor_dyn.default_plot(show=False)
+    model.plot_tracking_performance(show=False)
     model.plot_actuator_log(show=False)
     model.plot_uncertainty(show=True)
 

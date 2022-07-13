@@ -11,7 +11,7 @@ class FixedTimeFaultEstimator(MultiStateDynSystem):
     """
     def __init__(self, initial_states: Union[list, tuple],
                  alpha: float, beta: float, k_1: float, k_2: float,
-                 m: float, J: np.ndarray, R_u: np.ndarray):
+                 m: float, J: np.ndarray):
         super(FixedTimeFaultEstimator, self).__init__(initial_states)
         self.alpha = alpha
         self.beta = beta
@@ -19,9 +19,8 @@ class FixedTimeFaultEstimator(MultiStateDynSystem):
         self.k_2 = k_2
         self.m = m
         self.J = J.copy()
-        self.R_u = R_u.copy()
 
-    def derivative(self, z_1: np.ndarray, z_2: np.ndarray, x: np.ndarray, eta: np.ndarray, f_s: np.ndarray):
+    def derivative(self, z_1: np.ndarray, z_2: np.ndarray, x: np.ndarray, eta: np.ndarray, u: np.ndarray):
         """
         :param z_1: estimation for the state
         :param z_2: estimation for the actuator fault
@@ -44,10 +43,10 @@ class FixedTimeFaultEstimator(MultiStateDynSystem):
         ])
 
         e_d = z_1 - x
-        z_1_dot = self.k_1*(
+        z_1_dot = -self.k_1*(
             np.power(np.abs(e_d), self.alpha)*np.sign(e_d) + np.power(np.abs(e_d), self.beta)*np.sign(e_d)) +\
-            f + z_2 + B.dot(self.R_u.dot(f_s))
-        z_2_dot = self.k_2*(
+            f + z_2 + B.dot(u)
+        z_2_dot = -self.k_2*(
             np.power(np.abs(e_d), 2*self.alpha - 1)*np.sign(e_d) + np.power(np.abs(e_d), 2*self.beta - 1)*np.sign(e_d)
         )
         return [z_1_dot, z_2_dot]
