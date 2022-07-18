@@ -1,6 +1,6 @@
 """
 Description for Package
 """
-from pysimenv.multicopter.model import QuadrotorDynModel
+from pysimenv.multicopter.model import MulticopterDynamic
 
 __all__ = ['multicopter']

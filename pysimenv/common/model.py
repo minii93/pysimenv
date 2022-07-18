@@ -113,3 +113,13 @@ class SecondOrderLinSys(LinSys):
 
     def _output(self) -> Union[None, tuple, np.ndarray]:
         return self.state[0]
+
+
+class Integrator(TimeInvarDynSystem):
+    def __init__(self, initial_state: Union[ArrayType]):
+        def deriv_fun(x: np.ndarray, u: Union[float, np.ndarray]):
+            if isinstance(u, float):
+                u = np.array([u])
+            return u
+
+        super(Integrator, self).__init__(initial_state, deriv_fun)

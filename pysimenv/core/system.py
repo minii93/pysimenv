@@ -92,7 +92,7 @@ class BaseSystem(SimObject):
         """
         return self.logger.get(*args)
 
-    def default_plot(self, var_keys=None, var_ind_dict=None, var_names_dict=None):
+    def default_plot(self, show=False, var_keys=None, var_ind_dict=None, var_names_dict=None):
         if var_keys is None:
             var_keys = list(self.logger.keys())
             var_keys.remove('t')
@@ -137,8 +137,11 @@ class BaseSystem(SimObject):
                 ax_.legend()
             fig.suptitle(var_key)
 
-        plt.draw()
-        plt.pause(0.01)
+        if show:
+            plt.show()
+        else:
+            plt.draw()
+            plt.pause(0.01)
         return fig_axs
 
     # to be implemented
