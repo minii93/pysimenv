@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.linalg as lin
 import matplotlib.pyplot as plt
-from pysimenv.core.base import BaseObject
+from pysimenv.core.base import StaticObject
 from pysimenv.core.system import MultipleSystem, TimeInvarDynSystem
 from pysimenv.core.simulator import Simulator
 
@@ -26,7 +26,7 @@ class ExampleLQR(MultipleSystem):
 
         self.linear_system = TimeInvarDynSystem([0., 1.], lambda x, u: A.dot(x) + B.dot(u))
         self.lqr_gain = K
-        self.lqr_control = BaseObject(interval=control_interval, eval_fun=lambda x: -K.dot(x))
+        self.lqr_control = StaticObject(interval=control_interval, eval_fun=lambda x: -K.dot(x))
 
         self.attach_sim_objects([self.linear_system, self.lqr_control])
 

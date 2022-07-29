@@ -168,9 +168,9 @@ class SimObject(object):
         return to_stop, flag
 
 
-class BaseObject(SimObject):
+class StaticObject(SimObject):
     def __init__(self, interval: Union[int, float] = -1, eval_fun=None):
-        super(BaseObject, self).__init__(interval)
+        super(StaticObject, self).__init__(interval)
         self.eval_fun = eval_fun
         self.last_output = None
 
@@ -189,7 +189,7 @@ class BaseObject(SimObject):
 
     # to be implemented
     def evaluate(self, *args, **kwargs):
-        pass
+        raise NotImplementedError
 
 
 class BaseFunction(object):

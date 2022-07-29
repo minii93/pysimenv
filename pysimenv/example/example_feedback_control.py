@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from pysimenv.core.base import BaseObject
+from pysimenv.core.base import StaticObject
 from pysimenv.core.simulator import Simulator
 from pysimenv.core.system import TimeInvarDynSystem
 from pysimenv.common.model import FeedbackControl
@@ -51,7 +51,7 @@ linear_system = TimeInvarDynSystem(
     initial_state=[1., 0., 0., 0., 0., 0., 0.],
     deriv_fun=lambda x, u: A.dot(x) + B.dot(u),
     output_fun=lambda x: C.dot(x))
-control = BaseObject(interval=-1, eval_fun=lambda y: -K.dot(y))
+control = StaticObject(interval=-1, eval_fun=lambda y: -K.dot(y))
 model = FeedbackControl(linear_system, control)  # closed-loop system
 
 simulator = Simulator(model)

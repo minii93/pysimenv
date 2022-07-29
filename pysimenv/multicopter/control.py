@@ -2,12 +2,12 @@ import numpy as np
 import scipy
 from pyquaternion import Quaternion
 from typing import Union, Tuple
-from pysimenv.core.base import BaseObject
+from pysimenv.core.base import StaticObject
 from pysimenv.common.model import FlatEarthEnv
 from pysimenv.common.orientation import quaternion_to_axis_angle
 
 
-class FLVelControl(BaseObject):
+class FLVelControl(StaticObject):
     """
     Feedback linearization velocity control
     Reference: H. Voos, "Nonlinear Control of a Quadrotor Micro-UAV using Feedback-Linearization",
@@ -58,7 +58,7 @@ class FLVelControl(BaseObject):
         return u
 
 
-class QuaternionAttControl(BaseObject):
+class QuaternionAttControl(StaticObject):
     """
     Attitude control based on quaternion
     Reference: J. Carino, H. Abaunza and P. Castillo,
@@ -98,7 +98,7 @@ class QuaternionAttControl(BaseObject):
         return K
 
 
-class QuaternionPosControl(BaseObject):
+class QuaternionPosControl(StaticObject):
     e3 = np.array([0., 0., 1.])
     n = np.array([0., 0., -1.])
 

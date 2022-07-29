@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import Union, List
-from pysimenv.core.base import BaseObject
+from pysimenv.core.base import StaticObject
 from pysimenv.core.system import MultiStateDynSystem
 from pysimenv.core.simulator import Simulator
 from pysimenv.common.model import FlatEarthEnv
@@ -153,7 +153,7 @@ class QuadXMixer(object):
         return f_s
 
 
-class ActuatorFault(BaseObject):
+class ActuatorFault(StaticObject):
     def __init__(self, t_list: List[float], alp_list: List[np.ndarray], rho_list: List[np.ndarray],
                  interval: Union[int, float] = -1):
         """

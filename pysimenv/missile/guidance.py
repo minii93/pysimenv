@@ -1,14 +1,14 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import Union
-from pysimenv.core.base import BaseObject
+from pysimenv.core.base import StaticObject
 from pysimenv.core.system import MultipleSystem
 from pysimenv.common.model import Integrator
 from pysimenv.missile.model import PlanarManVehicle2dof
 from pysimenv.missile.util import RelKin2dim
 
 
-class PurePNG2dim(BaseObject):
+class PurePNG2dim(StaticObject):
     def __init__(self, N: float = 3.0, interval: Union[int, float] = -1):
         super(PurePNG2dim, self).__init__(interval=interval)
         self.N = N

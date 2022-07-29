@@ -1,11 +1,11 @@
 from typing import Union, List, Tuple, Optional
 
 import numpy as np
-from pysimenv.core.base import SimObject, BaseObject, ArrayType
+from pysimenv.core.base import SimObject, StaticObject, ArrayType
 from pysimenv.core.system import BaseSystem, MultipleSystem, TimeInvarDynSystem
 
 
-class SignalGenerator(BaseObject):
+class SignalGenerator(StaticObject):
     def __init__(self, shaping_fun, interval: Union[int, float] = -1):
         super(SignalGenerator, self).__init__(interval=interval)
         self.shaping_fun = shaping_fun
@@ -16,7 +16,7 @@ class SignalGenerator(BaseObject):
 
 
 class FeedbackControl(MultipleSystem):
-    def __init__(self, system: BaseSystem, control: BaseObject):
+    def __init__(self, system: BaseSystem, control: StaticObject):
         super(FeedbackControl, self).__init__()
         self.system = system
         self.control = control
