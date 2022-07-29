@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from typing import Optional, Tuple
 from pysimenv.core.system import MultipleSystem
 from pysimenv.missile.model import PlanarMissile2dof, PlanarManVehicle2dof
-from pysimenv.missile.guidance import PurePNG2dim
+from pysimenv.missile.guidance import PurePNG2dim, IACBPNG
 from pysimenv.missile.util import RelKin2dim, CloseDistCond, miss_distance, closest_instant, lin_interp
 
 
@@ -207,3 +207,16 @@ class PurePNG2dimEngagement(Engagement2dim):
 
         a_M = self.pure_png.forward(V_M, omega)
         self.missile.forward(np.array([0, a_M]))
+
+
+class IACBPNGEngagement(Engagement2dim):
+    def __init__(self, missile: PlanarMissile2dof, target: PlanarManVehicle2dof, bpng: IACBPNG):
+        super(IACBPNGEngagement, self).__init__(missile, target)
+        self.bpng = bpng
+        self.attach_sim_objects([self.bpng])
+
+    def forward(self):
+        super(IACBPNGEngagement, self).forward()
+        a_y_cmd = self.bpng.forward(self.missile, self.target, self.rel_kin)
+        self.missile.forward(np.array([0., a_y_cmd]))
+
