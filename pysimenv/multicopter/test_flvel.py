@@ -32,7 +32,7 @@ class FLVelTracking(MultipleSystem):
         omega = self.quadrotor.ang_vel
 
         u = self.vel_control.forward(v, eta, omega, v_d)
-        self.quadrotor.forward(u)
+        self.quadrotor.forward(u=u)
 
 
 def main():
@@ -40,7 +40,7 @@ def main():
     v_d = np.array([0.5, 0., 1.])
     model = FLVelTracking()
     simulator = Simulator(model)
-    simulator.propagate(0.01, 10., True, v_d)
+    simulator.propagate(0.01, 10., True, v_d=v_d)
     model.quadrotor.default_plot(show=True)
 
 

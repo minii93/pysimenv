@@ -1,10 +1,10 @@
 import numpy as np
 from typing import Union
-from pysimenv.core.system import MultiStateDynSystem
+from pysimenv.core.system import DynSystem
 from pysimenv.common.model import FlatEarthEnv
 
 
-class FixedTimeFaultEstimator(MultiStateDynSystem):
+class FixedTimeFaultEstimator(DynSystem):
     """
     Reference: L. Guo, "Fixed-Time Observer Based Safety Control for a Quadrotor UAV",
     IEEE Transactions on Aerospace and Electronic Systems, 2021.
@@ -12,7 +12,9 @@ class FixedTimeFaultEstimator(MultiStateDynSystem):
     def __init__(self, initial_states: Union[list, tuple],
                  alpha: float, beta: float, k_1: float, k_2: float,
                  m: float, J: np.ndarray):
-        super(FixedTimeFaultEstimator, self).__init__(initial_states)
+        super(FixedTimeFaultEstimator, self).__init__(
+            initial_states={'z_1': initial_states[0], 'z_2': initial_states[1]}
+        )
         self.alpha = alpha
         self.beta = beta
         self.k_1 = k_1
@@ -49,14 +51,8 @@ class FixedTimeFaultEstimator(MultiStateDynSystem):
         z_2_dot = -self.k_2*(
             np.power(np.abs(e_d), 2*self.alpha - 1)*np.sign(e_d) + np.power(np.abs(e_d), 2*self.beta - 1)*np.sign(e_d)
         )
-        return [z_1_dot, z_2_dot]
+        return {'z_1': z_1_dot, 'z_2': z_2_dot}
 
     @property
     def delta_hat(self) -> np.ndarray:
-        return self.state[1]
-
-
-
-
-
-
+        return self.state['z_2']

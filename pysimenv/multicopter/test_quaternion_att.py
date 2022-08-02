@@ -34,7 +34,7 @@ class Model(MultipleSystem):
 
         f = self.quadrotor.m*FlatEarthEnv.grav_accel
         tau = self.att_control.forward(q, omega, q_d, omega_d)
-        self.quadrotor.forward(np.array([f, tau[0], tau[1], tau[2]]))
+        self.quadrotor.forward(u=np.array([f, tau[0], tau[1], tau[2]]))
 
 
 def main():
@@ -42,7 +42,7 @@ def main():
     q_d = np.array([1., 0., 0., 0.])
     model = Model()
     simulator = Simulator(model)
-    simulator.propagate(0.01, 10., True, q_d)
+    simulator.propagate(0.01, 10., True, q_d=q_d)
     model.quadrotor.default_plot(show=True)
 
 

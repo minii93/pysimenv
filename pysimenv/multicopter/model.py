@@ -2,13 +2,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 from typing import Union, List
 from pysimenv.core.base import StaticObject
-from pysimenv.core.system import MultiStateDynSystem
+from pysimenv.core.system import DynSystem
 from pysimenv.core.simulator import Simulator
 from pysimenv.common.model import FlatEarthEnv
 from pysimenv.common import orientation
 
 
-class MulticopterDynamic(MultiStateDynSystem):
+class MulticopterDynamic(DynSystem):
     e3 = np.array([0., 0., 1.], dtype=np.float32)
 
     def __init__(self, initial_states: Union[list, tuple], m: float, J: np.ndarray):
@@ -21,12 +21,16 @@ class MulticopterDynamic(MultiStateDynSystem):
         :param m: mass, float
         :param J: inertia of mass, (3, 3) numpy array
         """
-        super(MulticopterDynamic, self).__init__(initial_states)
+        super(MulticopterDynamic, self).__init__(
+            initial_states={
+                'p': initial_states[0], 'v': initial_states[1],
+                'R': initial_states[2], 'omega': initial_states[3]}
+        )
         self.m = m
         self.J = J
         self.grav_accel = FlatEarthEnv.grav_accel*self.e3
 
-        self.state_var_list[2].attach_correction_fun(orientation.correct_orthogonality)
+        self.state_vars['R'].attach_correction_fun(orientation.correct_orthogonality)
 
     # implement
     def derivative(self, p, v, R, omega, u):
@@ -46,7 +50,7 @@ class MulticopterDynamic(MultiStateDynSystem):
         R_dot = np.matmul(R, self.hat(omega))
         omega_dot = np.linalg.solve(self.J, -np.cross(omega, np.dot(self.J, omega)) + tau)
 
-        return [p_dot, v_dot, R_dot, omega_dot]
+        return {'p': p_dot, 'v': v_dot, 'R': R_dot, 'omega': omega_dot}
 
     @classmethod
     def hat(cls, v):
@@ -59,28 +63,28 @@ class MulticopterDynamic(MultiStateDynSystem):
     @property
     def pos(self) -> np.ndarray:
         # position in the inertial frame
-        return self.state[0].copy()
+        return self.state['p'].copy()
 
     @property
     def vel(self) -> np.ndarray:
         # velocity in the inertial frame
-        return self.state[1].copy()
+        return self.state['v'].copy()
 
     @property
     def rotation(self) -> np.ndarray:
         # rotation matrix from the vehicle frame to the inertial frame R_iv
-        R_iv = self.state[2].copy()
+        R_iv = self.state['R'].copy()
         return R_iv
 
     @property
     def quaternion(self) -> np.ndarray:
-        R_iv = self.state[2]
+        R_iv = self.state['R']
         q = orientation.rotation_to_quaternion(np.transpose(R_iv))
         return q
 
     @property
     def euler_ang(self) -> np.ndarray:
-        R_iv = self.state[2]
+        R_iv = self.state['R']
         eta = np.array(
             orientation.rotation_to_euler_angles(np.transpose(R_iv))
         )
@@ -89,11 +93,11 @@ class MulticopterDynamic(MultiStateDynSystem):
     @property
     def ang_vel(self) -> np.ndarray:
         # angular velocity of the vehicle frame with respect to the inertial frame
-        return self.state[3]
+        return self.state['omega']
 
     def plot_euler_angles(self):
         time_list = self.history('t')
-        rotation_list = self.history('x_2')
+        rotation_list = self.history('R')
 
         data_num = rotation_list.shape[0]
         euler_angle_list = np.zeros((data_num, 3))
@@ -107,7 +111,7 @@ class MulticopterDynamic(MultiStateDynSystem):
         for i in range(3):
             plt.subplot(3, 1, i + 1)
             plt.plot(time_list, np.rad2deg(euler_angle_list[:, i]), label="Actual")
-            plt.xlabel("Time [s]")
+            plt.xlabel("Time (s)")
             plt.ylabel(names[i])
             plt.grid()
             plt.legend()
@@ -192,9 +196,9 @@ def main():
     vel = np.array([1., 0., 0.])
     R = np.identity(3)
     omega = np.array([0., 0., 0.1])
-    initial_states_ = (pos, vel, R, omega)
+    initial_states = (pos, vel, R, omega)
 
-    quadrotor = MulticopterDynamic(initial_states_, m, J)
+    quadrotor = MulticopterDynamic(initial_states, m, J)
 
     u = np.array([45., 0., 0., 0.])
 

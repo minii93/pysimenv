@@ -41,7 +41,7 @@ class Model(MultipleSystem):
         f, q_d, omega_d = self.pos_control.forward(p, v, p_d, v_d)
         tau = self.att_control.forward(q, omega, q_d, omega_d)
 
-        self.quadrotor.forward(np.array([f, tau[0], tau[1], tau[2]]))
+        self.quadrotor.forward(u=np.array([f, tau[0], tau[1], tau[2]]))
 
 
 def main():
@@ -50,7 +50,7 @@ def main():
     v_d = np.array([0., 0., 0.])
     model = Model()
     simulator = Simulator(model)
-    simulator.propagate(0.01, 10., True, p_d, v_d)
+    simulator.propagate(0.01, 10., True, p_d=p_d, v_d=v_d)
     model.quadrotor.default_plot(show=True)
 
 

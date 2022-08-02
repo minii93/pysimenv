@@ -49,10 +49,10 @@ class ISMC(MultipleSystem):
             -np.cos(phi)*np.cos(theta)/self.m, 1./J_x, 1./J_y, 1./J_z
         ])
         x_b_dot = f + B.dot(u_b)
-        self.x_b_integrator.forward(x_b_dot)
+        self.x_b_integrator.forward(u=x_b_dot)
 
         # calculate the control input
-        x_b = self.x_b_integrator.state
+        x_b = self.x_b_integrator.state['x']
         s = self.N.dot(x_d - x_b)
         sigma = 2/np.pi*np.arctan(np.linalg.norm(s))*s
         self.u_f = -np.linalg.solve(np.matmul(self.N, B), self.N.dot(delta_hat) + self.eps_1*sigma + self.eps_2*s)
@@ -197,10 +197,10 @@ class Model(MultipleSystem):
         f_s = self.quadrotor_mixer.convert(u)
         f_s_star = self.actuator_fault.forward(f_s)
         u_star = self.quadrotor_thrust.convert(f_s_star)
-        self.quadrotor_dyn.forward(u_star)
+        self.quadrotor_dyn.forward(u=u_star)
 
         # Fault estimation
-        self.estimator.forward(x, eta, u)
+        self.estimator.forward(x=x, eta=eta, u=u)
 
         # true uncertainty
         m = self.quadrotor_dyn.m
