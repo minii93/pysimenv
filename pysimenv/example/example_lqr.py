@@ -1,8 +1,7 @@
 import numpy as np
 import scipy.linalg as lin
-import matplotlib.pyplot as plt
 from pysimenv.core.base import StaticObject
-from pysimenv.core.system import MultipleSystem, TimeInvarDynSystem
+from pysimenv.core.system import MultipleSystem, DynSystem
 from pysimenv.core.simulator import Simulator
 
 
@@ -24,7 +23,9 @@ class ExampleLQR(MultipleSystem):
         P = lin.solve_continuous_are(A, B, Q, R)
         K = np.linalg.inv(R).dot(B.transpose().dot(P))
 
-        self.linear_system = TimeInvarDynSystem([0., 1.], lambda x, u: A.dot(x) + B.dot(u))
+        self.linear_system = DynSystem(
+            initial_states={'x': [0., 1.]},
+            deriv_fun=lambda x, u: {'x': A.dot(x) + B.dot(u)})
         self.lqr_gain = K
         self.lqr_control = StaticObject(interval=control_interval, eval_fun=lambda x: -K.dot(x))
 
@@ -32,16 +33,18 @@ class ExampleLQR(MultipleSystem):
 
     # implement
     def forward(self):
-        x = self.linear_system.state
+        x = self.linear_system.state['x']
         u_lqr = self.lqr_control.forward(x)
         self.linear_system.forward(u=u_lqr)
 
 
-if __name__ == "__main__":
+def main():
     print("== Test for an example LQR model ==")
     model = ExampleLQR()
     simulator = Simulator(model)
     simulator.propagate(dt=0.01, time=10., save_history=True)
-    model.linear_system.default_plot()
+    model.linear_system.default_plot(show=True)
 
-    plt.show()
+
+if __name__ == "__main__":
+    main()

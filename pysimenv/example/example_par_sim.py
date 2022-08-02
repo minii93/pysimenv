@@ -7,16 +7,16 @@ from pysimenv.common.model import SecondOrderLinSys
 
 def model_generator(zeta, omega):
     model = SecondOrderLinSys(
-        initial_state=[0, 0], zeta=zeta, omega=omega)
+        x_0=[0, 0], zeta=zeta, omega=omega)
     return model
 
 
 @ray.remote
 def simulation_fun(zeta, omega):
     model = model_generator(zeta, omega)
-    u_step = 1.
+    u_step = np.array([1.])
     simulator = Simulator(model, verbose=False)
-    simulator.propagate(0.01, 100, True, u_step)
+    simulator.propagate(0.01, 100, True, u=u_step)
 
     state = model.history('x')
     overshoot = max(state[:, 0] - u_step)/u_step*100.
