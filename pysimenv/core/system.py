@@ -1,77 +1,72 @@
-from abc import ABC
-
 import h5py
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-from typing import Union, Tuple
-from pytictoc import TicToc
+from abc import ABC
+from typing import Union, Tuple, Dict, Optional
 from pysimenv.core.util import SimClock, Timer
 from pysimenv.core.base import SimObject, StateVariable, BaseFunction, ArrayType
 
 
 class BaseSystem(SimObject):
-    def __init__(self, *args):
+    def __init__(self, **kwargs):
         """
-        :param args: initial states
+        :param kwargs: initial states
         """
         super().__init__()
         self.name = "base_system"
-        self.state_var_list = []
-        self.state_index = []
+        self.state_vars: Dict[str, StateVariable] = dict()
 
-        last_index = 0
-        if len(args) > 0:
-            for initial_state in args:
+        state_dim = 0
+        if len(kwargs) > 0:
+            for name, initial_state in kwargs.items():
                 var = StateVariable(initial_state)
-                index = list(range(last_index, last_index + var.size))
-                self.state_var_list.append(var)
-                self.state_index.append(index)
-                last_index += var.size
+                self.state_vars[name] = var
+                state_dim += var.size
 
-        self.state_var_num = len(self.state_var_list)
-        self.state_num = last_index
+        self.num_state_var = len(self.state_vars)
+        self.state_dim = state_dim
 
-    def set_state(self, *args) -> None:
+    def set_state(self, **kwargs) -> None:
         """
-        :param args: states
+        :param kwargs: states
         :return: None
         """
-        if len(args) > 0:
-            for i, state in enumerate(args):
-                self.state_var_list[i].apply_state(state)
+        if len(kwargs) > 0:
+            for name, state in kwargs.items():
+                self.state_vars[name].apply_state(state)
 
     # to be implemented
-    def forward(self, *args, **kwargs) -> None:
+    def forward(self, **kwargs) -> None:
         raise NotImplementedError
 
-    def step(self, dt: float, *args, **kwargs) -> None:
+    def step(self, dt: float, **kwargs) -> None:
         t_0 = self.sim_clock.time
 
         self.log_timer.forward()
-        self.forward(*args, **kwargs)
-        for var in self.state_var_list:
+        self.forward(**kwargs)
+        for var in self.state_vars.values():
             var.rk4_update_1(dt)
 
         self.sim_clock.apply_time(t_0 + dt/2)
         self.log_timer.forward()
-        self.forward(*args, **kwargs)
-        for var in self.state_var_list:
+        self.forward(**kwargs)
+        for var in self.state_vars.values():
             var.rk4_update_2(dt)
 
-        self.forward(*args, **kwargs)
-        for var in self.state_var_list:
+        self.forward(**kwargs)
+        for var in self.state_vars.values():
             var.rk4_update_3(dt)
 
         self.sim_clock.apply_time(t_0 + dt - 10*self.sim_clock.time_res)
         self.log_timer.forward()
-        self.forward(*args, **kwargs)
-        for var in self.state_var_list:
+        self.forward(**kwargs)
+        for var in self.state_vars.values():
             var.rk4_update_4(dt)
 
         self.sim_clock.apply_time(t_0 + dt)
 
-    def propagate(self, dt: float, time: float, *args, **kwargs):
+    def propagate(self, dt: float, time: float, **kwargs):
         assert self.sim_clock is not None, "Attach a sim_clock first!"
         assert self.log_timer is not None, "Attach a log_timer first!"
 
@@ -80,14 +75,14 @@ class BaseSystem(SimObject):
             to_stop, _ = self.check_stop_condition()
             if to_stop:
                 break
-            self.step(dt, *args, **kwargs)
+            self.step(dt, **kwargs)
 
         self.log_timer.forward()
-        self.forward(*args, **kwargs)
+        self.forward(**kwargs)
 
     def history(self, *args):
         """
-        :param args: keys
+        :param args: variable names
         :return:
         """
         return self.logger.get(*args)
@@ -146,8 +141,7 @@ class BaseSystem(SimObject):
 
     # to be implemented
     def report(self):
-        print("== Report for {} ==".format(self.name))
-        return
+        pass
 
     def save(self, h5file=None, data_group=''):
         data_group = data_group + '/' + self.name
@@ -173,189 +167,35 @@ class BaseSystem(SimObject):
         file.close()
 
     @property
-    def state(self) -> Union[list, np.ndarray]:
-        return self._get_state()
+    def state(self) -> Dict[str, np.ndarray]:
+        return self._get_states()
 
-    def _get_state(self) -> list:
-        states = []
-        for var in self.state_var_list:
-            states.append(var.state)
+    def _get_states(self) -> Dict[str, np.ndarray]:
+        states = dict()
+        for name, var in self.state_vars.items():
+            states[name] = var.state
         return states
 
     @property
-    def deriv(self) -> Union[list, np.ndarray]:
+    def deriv(self) -> Dict[str, np.ndarray]:
         return self._get_deriv()
 
-    def _get_deriv(self) -> list:
-        derivs = []
-        for var in self.state_var_list:
-            derivs.append(var.deriv)
+    def _get_deriv(self) -> Dict[str, np.ndarray]:
+        derivs = dict()
+        for name, var in self.state_vars.items():
+            derivs[name] = var.deriv
         return derivs
 
 
 class DynSystem(BaseSystem):
-    def __init__(self, initial_state: ArrayType, deriv_fun=None, output_fun=None):
-        super().__init__(initial_state)
-        self.name = 'dyn_system'
-
+    def __init__(self, initial_states: Dict[str, ArrayType], deriv_fun=None, output_fun=None):
+        """ initial_states: dictionary of (state1, state2, ...) """
         if output_fun is None:
-            def output_fun(x):
-                return x
+            def output_fun(**kwargs):
+                return None
 
-        self.initial_state = initial_state
-        if isinstance(deriv_fun, BaseFunction):
-            self.deriv_fun = deriv_fun.evaluate
-        else:
-            self.deriv_fun = deriv_fun
-
-        if isinstance(output_fun, BaseFunction):
-            self.output_fun = output_fun.evaluate
-        else:
-            self.output_fun = output_fun
-
-    # override
-    def reset(self):
-        super().reset()
-        self.set_state(self.initial_state)
-
-    # override
-    def set_state(self, state: ArrayType):
-        self.state_var_list[0].apply_state(state)
-
-    # to be implemented
-    def derivative(self, t: float, x: np.ndarray, *args, **kwargs) -> np.ndarray:
-        pass
-
-    # implement
-    def forward(self, *args, **kwargs):
-        if self.deriv_fun is None:
-            deriv = self.derivative(
-                self.sim_clock.time,
-                self.state_var_list[0].state,
-                *args, **kwargs
-            )
-        else:
-            deriv = self.deriv_fun(
-                self.sim_clock.time,
-                self.state_var_list[0].state,
-                *args, **kwargs
-            )
-        self.state_var_list[0].forward(deriv)
-
-        if self.log_timer.is_event:
-            self.logger.append(
-                t=self.sim_clock.time,
-                x=self.state_var_list[0].state)
-            anonymous_values = {'u_' + str(i): value for i, value in enumerate(args)}
-            self.logger.append(**anonymous_values)
-            self.logger.append(**kwargs)
-
-    # implement
-    def _output(self) -> np.ndarray:
-        return self.output_fun(self.state_var_list[0].state)
-
-    # override
-    def _get_state(self) -> np.ndarray:
-        return self.state_var_list[0].state
-
-    # override
-    def _get_deriv(self) -> np.ndarray:
-        return self.state_var_list[0].deriv
-
-    @staticmethod
-    def test():
-        print("== Test for DynSystem ==")
-        dt = 0.01
-        sim_clock = SimClock()
-        log_timer = Timer(dt)
-        log_timer.attach_sim_clock(sim_clock)
-        log_timer.turn_on()
-
-        def deriv_fun(t, x):
-            return -1./((1. + t)**2)*x
-
-        model = DynSystem([1.], deriv_fun)
-        model.attach_sim_clock(sim_clock)
-        model.attach_log_timer(log_timer)
-
-        t = TicToc()
-        t.tic()
-        model.propagate(dt=dt, time=10.)
-        t.toc()
-        model.default_plot()
-
-        plt.show()
-
-
-class TimeInvarDynSystem(DynSystem):
-    def __init__(self, initial_state: ArrayType, deriv_fun=None, output_fun=None):
-        if output_fun is None:
-            def output_fun(x):
-                return x
-        super().__init__(initial_state, deriv_fun, output_fun)
-        self.name = 'time_invar_dyn_system'
-
-    # to be implemented
-    def derivative(self, x: np.ndarray, *args, **kwargs) -> np.ndarray:
-        pass
-
-    # override
-    def forward(self, *args, **kwargs):
-        if self.deriv_fun is None:
-            deriv = self.derivative(
-                self.state_var_list[0].state,
-                *args, **kwargs
-            )
-        else:
-            deriv = self.deriv_fun(
-                self.state_var_list[0].state,
-                *args, **kwargs)
-        self.state_var_list[0].forward(deriv)
-
-        if self.log_timer.is_event:
-            self.logger.append(
-                t=self.sim_clock.time,
-                x=self.state_var_list[0].state
-            )
-            anonymous_values = {'u_' + str(i): value for i, value in enumerate(args)}
-            self.logger.append(**anonymous_values)
-            self.logger.append(**kwargs)
-
-    @staticmethod
-    def test():
-        print("== Test for TimeInvarDynSystem ==")
-        dt = 0.01
-        sim_clock = SimClock()
-        log_timer = Timer(dt)
-        log_timer.attach_sim_clock(sim_clock)
-        log_timer.turn_on()
-
-        def deriv_fun(x, u):
-            A = np.array([[0., 1.], [-1., -1.]], dtype=np.float32)
-            B = np.array([0., 1.], dtype=np.float32)
-            return A.dot(x) + B.dot(u)
-
-        model = TimeInvarDynSystem([0., 1.], deriv_fun)
-        model.attach_sim_clock(sim_clock)
-        model.attach_log_timer(log_timer)
-
-        t = TicToc()
-        t.tic()
-        model.propagate(dt=dt, time=10., u=1.)
-        t.toc()
-        model.default_plot()
-
-        plt.show()
-
-
-class MultiStateDynSystem(BaseSystem):
-    def __init__(self, initial_states: Union[list, tuple], deriv_fun=None, output_fun=None):
-        """ initial_states: list or tuple (state1, state2, ...) """
-        if output_fun is None:
-            def output_fun(*args):
-                return args
-        super(MultiStateDynSystem, self).__init__(*initial_states)
-        self.name = "multi_state_dyn_system"
+        super(DynSystem, self).__init__(**initial_states)
+        self.name = "dyn_system"
         self.initial_states = initial_states
 
         if isinstance(deriv_fun, BaseFunction):
@@ -370,38 +210,82 @@ class MultiStateDynSystem(BaseSystem):
 
     # override
     def reset(self):
-        super(MultiStateDynSystem, self).reset()
-        self.set_state(*self.initial_states)
+        super(DynSystem, self).reset()
+        self.set_state(**self.initial_states)
 
     # to be implemented
-    def derivative(self, *args, **kwargs) -> Union[tuple]:
+    def derivative(self, **kwargs) -> Dict[str, np.ndarray]:
         """ implement this method if needed
-        args: tuple (state1, state2, ..., input1, ...)
-        return: tuple (derivState1, derivState2, ...)
+        args: dictionary of {name1: state1, name2: state2, ..., input_name1: input1, ...}
+        return: dictionary of {name1: derivState1, name2: derivState2, ...)
         """
         if self.deriv_fun is None:
             raise NotImplementedError
-
-        return self.deriv_fun(*args, **kwargs)
+        return self.deriv_fun(**kwargs)
 
     # implement
-    def forward(self, *args, **kwargs):
-        states = self._get_state()
-        derivs = self.derivative(*states, *args, **kwargs)
+    def forward(self, **kwargs):
+        states = self._get_states()
+        derivs = self.derivative(**states, **kwargs)
 
-        for i, state_var in enumerate(self.state_var_list):
-            state_var.forward(derivs[i])
+        for name, var in self.state_vars.items():
+            var.forward(derivs[name])
 
         if self.log_timer.is_event:
-            self.logger.append(t=self.sim_clock.time)
-            state_values = {'x_' + str(i): value for i, value in enumerate(states)}
-            anonymous_values = {'u_' + str(i): value for i, value in enumerate(args)}
-            self.logger.append(**state_values, **anonymous_values, **kwargs)
+            self.logger.append(t=self.time, **states, **kwargs)
 
     # implement
-    def _output(self) -> tuple:
-        states = self._get_state()
-        return self.output_fun(*states)
+    def _output(self) -> Optional[np.ndarray]:
+        states = self._get_states()
+        return self.output_fun(**states)
+
+
+class TimeVaryingDynSystem(BaseSystem):
+    def __init__(self, initial_states: Dict[str, ArrayType], deriv_fun=None, output_fun=None):
+        if output_fun is None:
+            def output_fun(t, **kwargs):
+                return None
+
+        super(TimeVaryingDynSystem, self).__init__(**initial_states)
+        self.name = "time_varying_dyn_system"
+        self.initial_states = initial_states
+
+        if isinstance(deriv_fun, BaseFunction):
+            self.deriv_fun = deriv_fun.evaluate
+        else:
+            self.deriv_fun = deriv_fun
+
+        if isinstance(output_fun, BaseFunction):
+            self.output_fun = output_fun.evaluate
+        else:
+            self.output_fun = output_fun
+
+    # override
+    def reset(self):
+        super(TimeVaryingDynSystem, self).reset()
+        self.set_state(**self.initial_states)
+
+    # to be implemented
+    def derivative(self, t, **kwargs) -> Dict[str, np.ndarray]:
+        if self.deriv_fun is None:
+            raise NotImplementedError
+        return self.deriv_fun(t, **kwargs)
+
+    # implement
+    def forward(self, **kwargs):
+        states = self._get_states()
+        derivs = self.derivative(t=self.time, **states, **kwargs)
+
+        for name, var in self.state_vars.items():
+            var.forward(derivs[name])
+
+        if self.log_timer.is_event:
+            self.logger.append(t=self.time, **states, **kwargs)
+
+    # implement
+    def _output(self) -> Optional[np.ndarray]:
+        states = self._get_states()
+        return self.output_fun(t=self.time, **states)
 
 
 class MultipleSystem(BaseSystem, ABC):
@@ -412,27 +296,22 @@ class MultipleSystem(BaseSystem, ABC):
         self.sim_obj_num = 0
 
     def attach_sim_objects(self, sim_obj_list: Union[SimObject, list, tuple]):
-        if not (isinstance(sim_obj_list, list) or isinstance(sim_obj_list, tuple)):
+        if isinstance(sim_obj_list, SimObject):
             sim_obj_list = [sim_obj_list]
 
-        svi = self.state_var_num  # last state var index
-        si = self.state_num  # last state index
-
         for sim_obj in sim_obj_list:
-            if isinstance(sim_obj, SimObject):
-                self.sim_obj_list.append(sim_obj)
-                self.sim_obj_num += 1
+            if not isinstance(sim_obj, SimObject):
+                continue
 
-                if isinstance(sim_obj, BaseSystem):
-                    self.state_var_list.extend(sim_obj.state_var_list)
-                    for index in sim_obj.state_index:
-                        new_index = [si + _i for _i in index]
-                        self.state_index.append(new_index)
+            self.sim_obj_list.append(sim_obj)
+            self.sim_obj_num += 1
+            if isinstance(sim_obj, BaseSystem):
+                for name, var in sim_obj.state_vars.items():
+                    modified_name = 'sub' + str(self.sim_obj_num - 1) + '_' + name
+                    self.state_vars[modified_name] = var
 
-                    svi += sim_obj.state_var_num
-                    si += sim_obj.state_num
-        self.state_var_num = svi
-        self.state_num = si
+                self.num_state_var += sim_obj.num_state_var
+                self.state_dim += sim_obj.state_dim
 
     # override
     def attach_sim_clock(self, sim_clock: SimClock):
@@ -479,10 +358,3 @@ class MultipleSystem(BaseSystem, ABC):
         for sim_obj in self.sim_obj_list:
             if isinstance(sim_obj, BaseSystem):
                 sim_obj.load(h5file, data_group + '/' + self.name)
-
-
-if __name__ == "__main__":
-    DynSystem.test()
-    TimeInvarDynSystem.test()
-
-
