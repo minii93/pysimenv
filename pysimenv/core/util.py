@@ -33,7 +33,7 @@ class Timer(object):
 
         self.is_operating = False
         self.is_event = False
-        self.last_event_time = -np.inf
+        self._last_event_time = -np.inf
 
     def reset(self):
         self.turn_off()
@@ -51,12 +51,12 @@ class Timer(object):
 
         self.is_operating = True
         self.is_event = True
-        self.last_event_time = self.sim_clock.time
+        self._last_event_time = self.sim_clock.time
 
     def turn_off(self):
         self.is_operating = False
         self.is_event = False
-        self.last_event_time = -np.inf
+        self._last_event_time = -np.inf
 
     def detach_sim_clock(self):
         self.sim_clock = None
@@ -64,19 +64,19 @@ class Timer(object):
     def forward(self):
         if self.is_operating:
             # prevent repetitive calling
-            if abs(self.sim_clock.time - self.last_event_time) <= self.sim_clock.time_res:
+            if abs(self.sim_clock.time - self._last_event_time) <= self.sim_clock.time_res:
                 return
 
             # always raise an event when the event time interval is -1
             if self.event_time_interval == -1:
                 self.is_event = True
-                self.last_event_time = self.sim_clock.time
+                self._last_event_time = self.sim_clock.time
                 return
 
-            elapsed_time = self.sim_clock.time - self.last_event_time
+            elapsed_time = self.sim_clock.time - self._last_event_time
             if elapsed_time >= (self.event_time_interval - self.sim_clock.time_res):
                 self.is_event = True
-                self.last_event_time = self.sim_clock.time
+                self._last_event_time = self.sim_clock.time
             else:
                 self.is_event = False
 

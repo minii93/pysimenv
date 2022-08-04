@@ -1,7 +1,6 @@
 import numpy as np
-import matplotlib.pyplot as plt
 from pysimenv.common.model import Sequential, SignalGenerator
-from pysimenv.core.system import TimeInvarDynSystem
+from pysimenv.core.system import DynSystem
 from pysimenv.core.simulator import Simulator
 
 
@@ -15,7 +14,9 @@ def main():
         [-omega**2, -2*zeta*omega]
     ])
     B = np.array([0., omega**2])
-    linear_system = TimeInvarDynSystem([0., 0.], lambda x, u: A.dot(x) + B.dot(u))
+    linear_system = DynSystem(
+        initial_states={'x': [0., 0.]},
+        deriv_fun=lambda x, u: {'x': A.dot(x) + B.dot(u)})
 
     model = Sequential([
         signal_generator,
@@ -23,9 +24,7 @@ def main():
     ])
     simulator = Simulator(model)
     simulator.propagate(dt=0.01, time=10.)
-    linear_system.default_plot()
-
-    plt.show()
+    linear_system.default_plot(show=True)
 
 
 if __name__ == '__main__':

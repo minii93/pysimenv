@@ -1,20 +1,20 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import Union
-from pysimenv.core.base import BaseObject
+from pysimenv.core.base import StaticObject
 from pysimenv.core.system import MultipleSystem
 from pysimenv.common.model import Integrator
 from pysimenv.missile.model import PlanarManVehicle2dof
 from pysimenv.missile.util import RelKin2dim
 
 
-class PurePNG2dim(BaseObject):
+class PurePNG2dim(StaticObject):
     def __init__(self, N: float = 3.0, interval: Union[int, float] = -1):
         super(PurePNG2dim, self).__init__(interval=interval)
         self.N = N
 
     # implement
-    def evaluate(self, V_M, omega):
+    def _forward(self, V_M, omega):
         """
         :param V_M: speed of the missile
         :param omega: LOS rate
@@ -58,7 +58,7 @@ class IACBPNG(MultipleSystem):
         B_ref = theta_M_f_bar - theta_M_0_bar - N*lam_f_bar
         return B_ref
 
-    def forward(self, missile: PlanarManVehicle2dof, target: PlanarManVehicle2dof, rel_kin: RelKin2dim) -> float:
+    def _forward(self, missile: PlanarManVehicle2dof, target: PlanarManVehicle2dof, rel_kin: RelKin2dim) -> float:
         V_M = missile.V
         V_T = target.V
         omega = rel_kin.omega
@@ -66,7 +66,7 @@ class IACBPNG(MultipleSystem):
 
         B_ref = IACBPNG.reference_value(
             self.theta_M_0, self.theta_M_f, self.theta_T, self.lam_0, self.N, V_M, V_T)
-        B = self.bias_integrator.state[0]
+        B = self.bias_integrator.state['x'][0]
 
         b_1 = 1./self.tau*(B_ref - B)
         b_2 = (1. - self.N)*omega
@@ -89,8 +89,8 @@ class IACBPNG(MultipleSystem):
         a_b = V_M*b
         a_M = a_png + a_b
 
-        self.bias_integrator.forward(b)
-        self.logger.append(t=self.time, B_ref=B_ref, B=B, b=b, a_png=a_png, a_b=a_b)
+        self.bias_integrator.forward(u=b)
+        self._logger.append(t=self.time, B_ref=B_ref, B=B, b=b, a_png=a_png, a_b=a_b)
         return a_M
 
     def plot_bias(self):

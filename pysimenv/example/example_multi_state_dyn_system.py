@@ -1,24 +1,29 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from pysimenv.core.system import MultiStateDynSystem
+from pysimenv.core.system import DynSystem
 from pysimenv.core.simulator import Simulator
 
 
 def main():
-    def deriv_fun(pos_, vel_, accel_):
-        return vel_, accel_
+    def deriv_fun(p, v, a):
+        p_dot = v.copy()
+        v_dot = a.copy()
+        return {'p': p_dot, 'v': v_dot}
 
     print("== Test for MultiStateDynSystem ==")
-    initial_states = ([0., 0.], [1., 0.])
-    accel = np.array([0., 1.])
+    initial_states = {'p': [0., 0.], 'v': [1., 0.]}
+    a = np.array([0., 1.])
 
-    model = MultiStateDynSystem(initial_states, deriv_fun)
+    model = DynSystem(
+        initial_states=initial_states,
+        deriv_fun=deriv_fun
+    )
     simulator = Simulator(model)
-    simulator.propagate(0.01, 10., True, accel)
+    simulator.propagate(0.01, 10., True, a=a)
 
     time = model.history('t')
-    pos = model.history('x_0')
-    vel = model.history('x_1')
+    pos = model.history('p')
+    vel = model.history('v')
 
     plt.figure()
     plt.subplot(2, 1, 1)

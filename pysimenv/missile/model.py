@@ -2,11 +2,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 from typing import Optional, Tuple
 from pysimenv.core.base import ArrayType
-from pysimenv.core.system import TimeInvarDynSystem
+from pysimenv.core.system import DynSystem
 from pysimenv.common.util import wrap_to_pi
 
 
-class PlanarManVehicle2dof(TimeInvarDynSystem):
+class PlanarManVehicle2dof(DynSystem):
     """
     A 2-dof model for a maneuvering vehicle in the plane
     state x: [p_x, p_y, V, gamma]
@@ -15,23 +15,23 @@ class PlanarManVehicle2dof(TimeInvarDynSystem):
     [a_x, a_y] is the acceleration expressed in the velocity frame
     """
     def __init__(self, initial_state: ArrayType):
-        super(PlanarManVehicle2dof, self).__init__(initial_state)
+        super(PlanarManVehicle2dof, self).__init__(initial_states={'x': initial_state})
         self.name = "planar_man_vehicle"
 
         def angle_correction_fun(state: np.ndarray) -> np.ndarray:
             state[3] = wrap_to_pi(state[3])  # gamma should be in [-pi, pi] rad
             return state
-        self.state_var_list[0].attach_correction_fun(angle_correction_fun)
+        self.state_vars['x'].attach_correction_fun(angle_correction_fun)
 
     # implement
-    def derivative(self, x: np.ndarray, u: Optional[ArrayType] = None, *args, **kwargs) -> np.ndarray:
+    def _deriv(self, x: np.ndarray, u: Optional[ArrayType] = None):
         """
         :param x: [p_x, p_y, V, gamma]
         :param u: [a_x, a_y]
         :return: x_dot
         """
         if u is None:
-            u = [0., 0.]
+            u = np.array([0., 0.])
         V = x[2]
         gamma = x[3]
 
@@ -47,21 +47,21 @@ class PlanarManVehicle2dof(TimeInvarDynSystem):
         else:
             gamma_dot = a_y/V
 
-        return np.array([p_x_dot, p_y_dot, V_dot, gamma_dot])
+        return {'x': np.array([p_x_dot, p_y_dot, V_dot, gamma_dot])}
 
     @property
     def p(self) -> np.ndarray:
         """
         :return: [p_x, p_y]
         """
-        return self.state[0:2]
+        return self.state['x'][0:2]
 
     @property
     def v(self) -> np.ndarray:
         """
         :return: [v_x, v_y]
         """
-        x = self.state
+        x = self.state['x']
         V = x[2]
         gamma = x[3]
 
@@ -72,14 +72,14 @@ class PlanarManVehicle2dof(TimeInvarDynSystem):
         """
         :return: V
         """
-        return self.state[2]
+        return self.state['x'][2]
 
     @property
     def gamma(self) -> float:
         """
         :return: gamma
         """
-        return self.state[3]
+        return self.state['x'][3]
 
     def plot(self):
         var_keys = {'x', 'u'}
@@ -88,7 +88,7 @@ class PlanarManVehicle2dof(TimeInvarDynSystem):
             'x': ['p_x (m)', 'p_y (m)', 'V (m/s)', 'gamma (rad)'],
             'u': ['a_x (m/s**2)', 'a_y (m/s**2)']
         }
-        fig_axs = self.default_plot(var_keys, var_ind_dict, var_names_dict)
+        fig_axs = self.default_plot(var_keys=var_keys, var_ind_dict=var_ind_dict, var_names_dict=var_names_dict)
         return fig_axs
 
     def plot_path(self, fig_ax=None):
@@ -121,8 +121,8 @@ class PlanarNonManVehicle2dof(PlanarManVehicle2dof):
         self.name = "planar_non_man_vehicle"
 
     # override
-    def derivative(self, x: np.ndarray, *args, **kwargs):
-        return super(PlanarNonManVehicle2dof, self).derivative(x, np.zeros(2))
+    def _deriv(self, x: np.ndarray, **kwargs):
+        return super(PlanarNonManVehicle2dof, self)._deriv(x, np.zeros(2))
 
     # override
     def plot(self):
@@ -147,9 +147,9 @@ class PlanarMissile2dof(PlanarManVehicle2dof):
         self.ground_elevation = -np.inf
 
     # override
-    def forward(self, a_M):
+    def _forward(self, a_M):
         a_M = np.clip(a_M, self.acc_limit[0], self.acc_limit[1])
-        super(PlanarMissile2dof, self).forward(u=a_M)
+        super(PlanarMissile2dof, self)._forward(u=a_M)
 
     # implement
     def check_stop_condition(self) -> Tuple[bool, int]:
@@ -175,7 +175,7 @@ class PlanarMissile2dof(PlanarManVehicle2dof):
         np.set_printoptions(precision=2, suppress=True)
         print("[{:s}] Final state [m, m, m/s, deg]:".format(self.name))
 
-        final_state = self.state.copy()
+        final_state = self.state['x'].copy()
         final_state[3] = np.rad2deg(final_state[3])
         print(final_state)
         if self.flag == 0:

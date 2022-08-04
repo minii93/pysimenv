@@ -12,7 +12,7 @@ class StateVariable(object):
     def __init__(self, state: ArrayType):
         self.state = np.array(state)
         self.deriv = np.zeros_like(state)
-        self.rk4_buffer = []
+        self._rk4_buffer = []
         self.correction_fun = None
 
     def apply_state(self, state: ArrayType):
@@ -22,40 +22,40 @@ class StateVariable(object):
     def size(self):
         return self.state.size
 
-    def forward(self, deriv: np.ndarray):
+    def set_deriv(self, deriv: np.ndarray):
         self.deriv = deriv
 
     def rk4_update_1(self, dt: float):
         x_0 = np.copy(self.state)
         k_1 = np.copy(self.deriv)
 
-        self.rk4_buffer.clear()
-        self.rk4_buffer.append(x_0)
-        self.rk4_buffer.append(k_1)
+        self._rk4_buffer.clear()
+        self._rk4_buffer.append(x_0)
+        self._rk4_buffer.append(k_1)
         self.state = x_0 + dt / 2 * k_1  # x = x0 + dt/2*k1
         if self.correction_fun is not None:
             self.state = self.correction_fun(self.state)
 
     def rk4_update_2(self, dt: float):
-        x_0 = self.rk4_buffer[0]
+        x_0 = self._rk4_buffer[0]
         k_2 = np.copy(self.deriv)
 
-        self.rk4_buffer.append(k_2)
+        self._rk4_buffer.append(k_2)
         self.state = x_0 + dt / 2 * k_2  # x = x0 + dt/2*k2
         if self.correction_fun is not None:
             self.state = self.correction_fun(self.state)
 
     def rk4_update_3(self, dt: float):
-        x_0 = self.rk4_buffer[0]
+        x_0 = self._rk4_buffer[0]
         k_3 = np.copy(self.deriv)
 
-        self.rk4_buffer.append(k_3)
+        self._rk4_buffer.append(k_3)
         self.state = x_0 + dt / 2 * k_3  # x = x0 + dt/2*k3
         if self.correction_fun is not None:
             self.state = self.correction_fun(self.state)
 
     def rk4_update_4(self, dt: float):
-        x_0, k_1, k_2, k_3 = self.rk4_buffer[:]
+        x_0, k_1, k_2, k_3 = self._rk4_buffer[:]
         k_4 = np.copy(self.deriv)
 
         self.state = x_0 + dt * (k_1 + 2 * k_2 + 2 * k_3 + k_4) / 6
@@ -78,13 +78,13 @@ class StateVariable(object):
             time_list.append(t)
             sim_state_list.append(state_var.state)
 
-            state_var.forward(deriv_fun(state_var.state))
+            state_var.set_deriv(deriv_fun(state_var.state))
             state_var.rk4_update_1(dt)
-            state_var.forward(deriv_fun(state_var.state))
+            state_var.set_deriv(deriv_fun(state_var.state))
             state_var.rk4_update_2(dt)
-            state_var.forward(deriv_fun(state_var.state))
+            state_var.set_deriv(deriv_fun(state_var.state))
             state_var.rk4_update_3(dt)
-            state_var.forward(deriv_fun(state_var.state))
+            state_var.set_deriv(deriv_fun(state_var.state))
             state_var.rk4_update_4(dt)
             t = t + dt
 
@@ -114,52 +114,65 @@ class SimObject(object):
 
     def __init__(self, interval: Union[int, float] = -1):
         self.flag: int = SimObject.FLAG_OPERATING
-        self.sim_clock: Optional[SimClock] = None
-        self.log_timer: Optional[Timer] = None
-        self.timer = Timer(event_time_interval=interval)
-        self.logger = Logger()
+        self._sim_clock: Optional[SimClock] = None
+        self._log_timer: Optional[Timer] = None
+        self._timer = Timer(event_time_interval=interval)
+        self._logger = Logger()
+        self._last_output = None
 
     def attach_sim_clock(self, sim_clock: SimClock):
-        self.sim_clock = sim_clock
-        self.timer.attach_sim_clock(sim_clock)
-        self.timer.turn_on()
+        self._sim_clock = sim_clock
+        self._timer.attach_sim_clock(sim_clock)
+        self._timer.turn_on()
 
     def attach_log_timer(self, log_timer: Timer):
-        self.log_timer = log_timer
+        self._log_timer = log_timer
 
     def initialize(self):
         pass
 
     def detach_sim_clock(self):
-        self.sim_clock = None
-        self.timer.turn_off()
-        self.timer.detach_sim_clock()
+        self._sim_clock = None
+        self._timer.turn_off()
+        self._timer.detach_sim_clock()
 
     def detach_log_timer(self):
-        self.log_timer = None
+        self._log_timer = None
     
     def reset(self):
         self.flag = SimObject.FLAG_OPERATING
-        self.timer.reset()
-        self.logger.clear()
+        self._timer.reset()
+        self._logger.clear()
 
     @property
     def time(self) -> float:
-        if self.sim_clock is None:
+        if self._sim_clock is None:
             raise NoSimClockError
-        return self.sim_clock.time
+        return self._sim_clock.time
+
+    def forward(self, *args, **kwargs):
+        self._timer.forward()
+        output = self._forward(*args, **kwargs)
+
+        if self._timer.is_event:
+            self._last_output = output
+
+        return self._last_output
 
     # to be implemented
-    def forward(self, *args, **kwargs):
-        raise NotImplementedError
+    def _forward(self, *args, **kwargs):
+        return NotImplementedError
 
     @property
     def output(self) -> Union[None, tuple, np.ndarray]:
-        return self._output()
+        return self._last_output
 
-    # to be implemented
-    def _output(self) -> Union[None, tuple, np.ndarray]:
-        return None
+    def history(self, *args):
+        """
+        :param args: variable names
+        :return:
+        """
+        return self._logger.get(*args)
 
     # to be implemented
     def check_stop_condition(self) -> Tuple[bool, int]:
@@ -168,28 +181,25 @@ class SimObject(object):
         return to_stop, flag
 
 
-class BaseObject(SimObject):
+class StaticObject(SimObject):
     def __init__(self, interval: Union[int, float] = -1, eval_fun=None):
-        super(BaseObject, self).__init__(interval)
+        super(StaticObject, self).__init__(interval)
         self.eval_fun = eval_fun
-        self.last_output = None
 
+    # override
     def forward(self, *args, **kwargs):
-        self.timer.forward()
-        if self.timer.is_event:
-            if self.eval_fun is None:
-                self.last_output = self.evaluate(*args, **kwargs)
-            else:
-                self.last_output = self.eval_fun(*args, **kwargs)
+        self._timer.forward()
+        if self._timer.is_event:
+            self._last_output = self._forward(*args, **kwargs)
 
-        return self.last_output
+        return self._last_output
 
-    def _output(self) -> Union[None, list, np.ndarray]:
-        return self.last_output
-
-    # to be implemented
-    def evaluate(self, *args, **kwargs):
-        pass
+    # may be implemented
+    def _forward(self, *args, **kwargs):
+        if self.eval_fun is None:
+            raise NotImplementedError
+        else:
+            return self.eval_fun(*args, **kwargs)
 
 
 class BaseFunction(object):

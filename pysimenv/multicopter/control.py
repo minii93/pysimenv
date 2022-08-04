@@ -2,12 +2,12 @@ import numpy as np
 import scipy
 from pyquaternion import Quaternion
 from typing import Union, Tuple
-from pysimenv.core.base import BaseObject
+from pysimenv.core.base import StaticObject
 from pysimenv.common.model import FlatEarthEnv
 from pysimenv.common.orientation import quaternion_to_axis_angle
 
 
-class FLVelControl(BaseObject):
+class FLVelControl(StaticObject):
     """
     Feedback linearization velocity control
     Reference: H. Voos, "Nonlinear Control of a Quadrotor Micro-UAV using Feedback-Linearization",
@@ -24,7 +24,7 @@ class FLVelControl(BaseObject):
         self.k_p_vel = k_p_vel  # (3,) array
 
     # implement
-    def evaluate(self, v: np.ndarray, eta: np.ndarray, omega: np.ndarray, v_d: np.ndarray = np.zeros(3)):
+    def _forward(self, v: np.ndarray, eta: np.ndarray, omega: np.ndarray, v_d: np.ndarray = np.zeros(3)):
         """
         :param v: velocity
         :param eta:
@@ -58,7 +58,7 @@ class FLVelControl(BaseObject):
         return u
 
 
-class QuaternionAttControl(BaseObject):
+class QuaternionAttControl(StaticObject):
     """
     Attitude control based on quaternion
     Reference: J. Carino, H. Abaunza and P. Castillo,
@@ -71,7 +71,7 @@ class QuaternionAttControl(BaseObject):
         self.K = K  # (3, 6) array
 
     # implement
-    def evaluate(self, q: np.ndarray, omega: np.ndarray, q_d: np.ndarray, omega_d: np.ndarray = np.zeros(3))\
+    def _forward(self, q: np.ndarray, omega: np.ndarray, q_d: np.ndarray, omega_d: np.ndarray = np.zeros(3))\
             -> np.ndarray:
         a, phi = quaternion_to_axis_angle(q)
         theta = a*phi
@@ -98,7 +98,7 @@ class QuaternionAttControl(BaseObject):
         return K
 
 
-class QuaternionPosControl(BaseObject):
+class QuaternionPosControl(StaticObject):
     e3 = np.array([0., 0., 1.])
     n = np.array([0., 0., -1.])
 
@@ -108,7 +108,7 @@ class QuaternionPosControl(BaseObject):
         self.K = K
 
     # implement
-    def evaluate(self, p: np.ndarray, v: np.ndarray, p_d: np.ndarray, v_d: np.ndarray = np.zeros(3))\
+    def _forward(self, p: np.ndarray, v: np.ndarray, p_d: np.ndarray, v_d: np.ndarray = np.zeros(3))\
             -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         x = np.hstack((p, v))
         x_d = np.hstack((p_d, v_d))

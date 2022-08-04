@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from typing import Optional, Tuple
+from typing import Tuple
 from pysimenv.core.system import MultipleSystem
 from pysimenv.missile.model import PlanarMissile2dof, PlanarManVehicle2dof
 from pysimenv.missile.guidance import PurePNG2dim, IACBPNG
@@ -24,14 +24,14 @@ class Engagement2dim(MultipleSystem):
 
     # implement
     def initialize(self):
-        x_M = self.missile.state
-        x_T = self.target.state
+        x_M = self.missile.state['x']
+        x_T = self.target.state['x']
         self.rel_kin.evaluate(x_M, x_T)
 
     # implement
     def forward(self):
-        x_M = self.missile.state
-        x_T = self.target.state
+        x_M = self.missile.state['x']
+        x_T = self.target.state['x']
         self.rel_kin.evaluate(x_M, x_T)
         self.close_dist_cond.evaluate(self.rel_kin.r)
         self.target.forward()
@@ -206,7 +206,7 @@ class PurePNG2dimEngagement(Engagement2dim):
         omega = self.rel_kin.omega
 
         a_M = self.pure_png.forward(V_M, omega)
-        self.missile.forward(np.array([0, a_M]))
+        self.missile.forward(a_M=np.array([0, a_M]))
 
 
 class IACBPNGEngagement(Engagement2dim):
@@ -218,5 +218,5 @@ class IACBPNGEngagement(Engagement2dim):
     def forward(self):
         super(IACBPNGEngagement, self).forward()
         a_y_cmd = self.bpng.forward(self.missile, self.target, self.rel_kin)
-        self.missile.forward(np.array([0., a_y_cmd]))
+        self.missile.forward(a_M=np.array([0., a_y_cmd]))
 
