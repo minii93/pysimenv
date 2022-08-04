@@ -41,15 +41,15 @@ class BaseSystem(SimObject):
         raise NotImplementedError
 
     def step(self, dt: float, **kwargs) -> None:
-        t_0 = self.sim_clock.time
+        t_0 = self._sim_clock.time
 
-        self.log_timer.forward()
+        self._log_timer.forward()
         self.forward(**kwargs)
         for var in self.state_vars.values():
             var.rk4_update_1(dt)
 
-        self.sim_clock.apply_time(t_0 + dt/2)
-        self.log_timer.forward()
+        self._sim_clock.apply_time(t_0 + dt / 2)
+        self._log_timer.forward()
         self.forward(**kwargs)
         for var in self.state_vars.values():
             var.rk4_update_2(dt)
@@ -58,17 +58,17 @@ class BaseSystem(SimObject):
         for var in self.state_vars.values():
             var.rk4_update_3(dt)
 
-        self.sim_clock.apply_time(t_0 + dt - 10*self.sim_clock.time_res)
-        self.log_timer.forward()
+        self._sim_clock.apply_time(t_0 + dt - 10 * self._sim_clock.time_res)
+        self._log_timer.forward()
         self.forward(**kwargs)
         for var in self.state_vars.values():
             var.rk4_update_4(dt)
 
-        self.sim_clock.apply_time(t_0 + dt)
+        self._sim_clock.apply_time(t_0 + dt)
 
     def propagate(self, dt: float, time: float, **kwargs):
-        assert self.sim_clock is not None, "Attach a sim_clock first!"
-        assert self.log_timer is not None, "Attach a log_timer first!"
+        assert self._sim_clock is not None, "Attach a sim_clock first!"
+        assert self._log_timer is not None, "Attach a log_timer first!"
 
         iter_num = min(round(time/dt), np.iinfo(np.int32).max)
         for i in range(iter_num):
@@ -77,19 +77,12 @@ class BaseSystem(SimObject):
                 break
             self.step(dt, **kwargs)
 
-        self.log_timer.forward()
+        self._log_timer.forward()
         self.forward(**kwargs)
-
-    def history(self, *args):
-        """
-        :param args: variable names
-        :return:
-        """
-        return self.logger.get(*args)
 
     def default_plot(self, show=False, var_keys=None, var_ind_dict=None, var_names_dict=None):
         if var_keys is None:
-            var_keys = list(self.logger.keys())
+            var_keys = list(self._logger.keys())
             var_keys.remove('t')
         if var_ind_dict is None:
             var_ind_dict = dict()
@@ -145,11 +138,11 @@ class BaseSystem(SimObject):
 
     def save(self, h5file=None, data_group=''):
         data_group = data_group + '/' + self.name
-        self.logger.save(h5file, data_group)
+        self._logger.save(h5file, data_group)
 
     def load(self, h5file=None, data_group=''):
         data_group = data_group + '/' + self.name
-        self.logger.load(h5file, data_group)
+        self._logger.load(h5file, data_group)
 
     def save_log_file(self, save_dir=None):
         if save_dir is None:
@@ -231,8 +224,8 @@ class DynSystem(BaseSystem):
         for name, var in self.state_vars.items():
             var.forward(derivs[name])
 
-        if self.log_timer.is_event:
-            self.logger.append(t=self.time, **states, **kwargs)
+        if self._log_timer.is_event:
+            self._logger.append(t=self.time, **states, **kwargs)
 
     # implement
     def _output(self) -> Optional[np.ndarray]:
@@ -279,8 +272,8 @@ class TimeVaryingDynSystem(BaseSystem):
         for name, var in self.state_vars.items():
             var.forward(derivs[name])
 
-        if self.log_timer.is_event:
-            self.logger.append(t=self.time, **states, **kwargs)
+        if self._log_timer.is_event:
+            self._logger.append(t=self.time, **states, **kwargs)
 
     # implement
     def _output(self) -> Optional[np.ndarray]:

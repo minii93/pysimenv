@@ -90,7 +90,7 @@ class IACBPNG(MultipleSystem):
         a_M = a_png + a_b
 
         self.bias_integrator.forward(u=b)
-        self.logger.append(t=self.time, B_ref=B_ref, B=B, b=b, a_png=a_png, a_b=a_b)
+        self._logger.append(t=self.time, B_ref=B_ref, B=B, b=b, a_png=a_png, a_b=a_b)
         return a_M
 
     def plot_bias(self):

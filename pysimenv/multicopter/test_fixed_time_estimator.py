@@ -57,7 +57,7 @@ class ISMC(MultipleSystem):
         sigma = 2/np.pi*np.arctan(np.linalg.norm(s))*s
         self.u_f = -np.linalg.solve(np.matmul(self.N, B), self.N.dot(delta_hat) + self.eps_1*sigma + self.eps_2*s)
 
-        self.logger.append(t=self.time, s=s)
+        self._logger.append(t=self.time, s=s)
         return self.u_f.copy()
 
     # implement
@@ -213,8 +213,8 @@ class Model(MultipleSystem):
         ])
         delta = B.dot(u_star - u)
 
-        self.logger.append(t=self.time, f_s=f_s, f_s_star=f_s_star,
-                           delta=delta, delta_hat=delta_hat, p_d=p_d, p=p)
+        self._logger.append(t=self.time, f_s=f_s, f_s_star=f_s_star,
+                            delta=delta, delta_hat=delta_hat, p_d=p_d, p=p)
 
     def plot_actuator_log(self, show=False):
         t = self.history('t')
