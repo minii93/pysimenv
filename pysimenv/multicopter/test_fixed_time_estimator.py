@@ -26,7 +26,7 @@ class ISMC(MultipleSystem):
 
         self.attach_sim_objects([self.x_b_integrator])
 
-    def forward(self, x_d: np.ndarray, x: np.ndarray, eta: np.ndarray, u_b: np.ndarray, delta_hat: np.ndarray) -> np.ndarray:
+    def _forward(self, x_d: np.ndarray, x: np.ndarray, eta: np.ndarray, u_b: np.ndarray, delta_hat: np.ndarray) -> np.ndarray:
         """
         :param x_d: desired state
         :param x: actual state (v_z, p, q, r)
@@ -61,8 +61,8 @@ class ISMC(MultipleSystem):
         return self.u_f.copy()
 
     # implement
-    def _output(self) -> np.ndarray:
-        return self.u_f.copy()
+    # def _output(self) -> np.ndarray:
+    #    return self.u_f.copy()
 
     def plot_sliding_value(self, show=False):
         t = self.history('t')

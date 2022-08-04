@@ -24,7 +24,7 @@ class PlanarManVehicle2dof(DynSystem):
         self.state_vars['x'].attach_correction_fun(angle_correction_fun)
 
     # implement
-    def derivative(self, x: np.ndarray, u: Optional[ArrayType] = None):
+    def _deriv(self, x: np.ndarray, u: Optional[ArrayType] = None):
         """
         :param x: [p_x, p_y, V, gamma]
         :param u: [a_x, a_y]
@@ -121,8 +121,8 @@ class PlanarNonManVehicle2dof(PlanarManVehicle2dof):
         self.name = "planar_non_man_vehicle"
 
     # override
-    def derivative(self, x: np.ndarray, **kwargs):
-        return super(PlanarNonManVehicle2dof, self).derivative(x, np.zeros(2))
+    def _deriv(self, x: np.ndarray, **kwargs):
+        return super(PlanarNonManVehicle2dof, self)._deriv(x, np.zeros(2))
 
     # override
     def plot(self):
@@ -147,9 +147,9 @@ class PlanarMissile2dof(PlanarManVehicle2dof):
         self.ground_elevation = -np.inf
 
     # override
-    def forward(self, a_M):
+    def _forward(self, a_M):
         a_M = np.clip(a_M, self.acc_limit[0], self.acc_limit[1])
-        super(PlanarMissile2dof, self).forward(u=a_M)
+        super(PlanarMissile2dof, self)._forward(u=a_M)
 
     # implement
     def check_stop_condition(self) -> Tuple[bool, int]:

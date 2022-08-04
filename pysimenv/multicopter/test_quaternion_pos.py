@@ -32,7 +32,7 @@ class Model(MultipleSystem):
 
         self.attach_sim_objects([self.quadrotor, self.att_control, self.pos_control])
 
-    def forward(self, p_d: np.ndarray, v_d: np.ndarray = np.zeros(3)):
+    def _forward(self, p_d: np.ndarray, v_d: np.ndarray = np.zeros(3)):
         p = self.quadrotor.pos
         v = self.quadrotor.vel
         q = self.quadrotor.quaternion

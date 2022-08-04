@@ -7,11 +7,11 @@ from typing import List
 from pytictoc import TicToc
 from ray.remote_function import RemoteFunction
 from pysimenv.core.util import SimClock, Timer, Logger
-from pysimenv.core.system import BaseSystem
+from pysimenv.core.system import DynObject
 
 
 class Simulator(object):
-    def __init__(self, model: BaseSystem, verbose: bool = True):
+    def __init__(self, model: DynObject, verbose: bool = True):
         self.sim_clock = SimClock()
         self.log_timer = Timer(np.inf)
         self.log_timer.attach_sim_clock(self.sim_clock)

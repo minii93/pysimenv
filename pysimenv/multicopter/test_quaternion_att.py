@@ -28,7 +28,7 @@ class Model(MultipleSystem):
 
         self.attach_sim_objects([self.quadrotor, self.att_control])
 
-    def forward(self, q_d: np.ndarray, omega_d: np.ndarray = np.zeros(3)):
+    def _forward(self, q_d: np.ndarray, omega_d: np.ndarray = np.zeros(3)):
         q = self.quadrotor.quaternion
         omega = self.quadrotor.ang_vel
 

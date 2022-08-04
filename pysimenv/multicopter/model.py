@@ -33,7 +33,7 @@ class MulticopterDynamic(DynSystem):
         self.state_vars['R'].attach_correction_fun(orientation.correct_orthogonality)
 
     # implement
-    def derivative(self, p, v, R, omega, u):
+    def _deriv(self, p, v, R, omega, u):
         """
         :param p: position, (3,) numpy array
         :param v: velocity, (3,) numpy array
@@ -177,7 +177,7 @@ class ActuatorFault(StaticObject):
         self.rho = rho_list[0]
         self.next_ind = 1
 
-    def evaluate(self, f_s: np.ndarray):
+    def _forward(self, f_s: np.ndarray):
         if self.next_ind < len(self.t_list):
             if self.time >= self.t_list[self.next_ind]:
                 self.alp = self.alp_list[self.next_ind]

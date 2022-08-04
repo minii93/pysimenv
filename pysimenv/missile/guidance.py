@@ -14,7 +14,7 @@ class PurePNG2dim(StaticObject):
         self.N = N
 
     # implement
-    def evaluate(self, V_M, omega):
+    def _forward(self, V_M, omega):
         """
         :param V_M: speed of the missile
         :param omega: LOS rate
@@ -58,7 +58,7 @@ class IACBPNG(MultipleSystem):
         B_ref = theta_M_f_bar - theta_M_0_bar - N*lam_f_bar
         return B_ref
 
-    def forward(self, missile: PlanarManVehicle2dof, target: PlanarManVehicle2dof, rel_kin: RelKin2dim) -> float:
+    def _forward(self, missile: PlanarManVehicle2dof, target: PlanarManVehicle2dof, rel_kin: RelKin2dim) -> float:
         V_M = missile.V
         V_T = target.V
         omega = rel_kin.omega

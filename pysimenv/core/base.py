@@ -22,7 +22,7 @@ class StateVariable(object):
     def size(self):
         return self.state.size
 
-    def forward(self, deriv: np.ndarray):
+    def set_deriv(self, deriv: np.ndarray):
         self.deriv = deriv
 
     def rk4_update_1(self, dt: float):
@@ -78,13 +78,13 @@ class StateVariable(object):
             time_list.append(t)
             sim_state_list.append(state_var.state)
 
-            state_var.forward(deriv_fun(state_var.state))
+            state_var.set_deriv(deriv_fun(state_var.state))
             state_var.rk4_update_1(dt)
-            state_var.forward(deriv_fun(state_var.state))
+            state_var.set_deriv(deriv_fun(state_var.state))
             state_var.rk4_update_2(dt)
-            state_var.forward(deriv_fun(state_var.state))
+            state_var.set_deriv(deriv_fun(state_var.state))
             state_var.rk4_update_3(dt)
-            state_var.forward(deriv_fun(state_var.state))
+            state_var.set_deriv(deriv_fun(state_var.state))
             state_var.rk4_update_4(dt)
             t = t + dt
 
@@ -118,6 +118,7 @@ class SimObject(object):
         self._log_timer: Optional[Timer] = None
         self._timer = Timer(event_time_interval=interval)
         self._logger = Logger()
+        self._last_output = None
 
     def attach_sim_clock(self, sim_clock: SimClock):
         self._sim_clock = sim_clock
@@ -149,17 +150,22 @@ class SimObject(object):
             raise NoSimClockError
         return self._sim_clock.time
 
-    # to be implemented
     def forward(self, *args, **kwargs):
-        raise NotImplementedError
+        self._timer.forward()
+        output = self._forward(*args, **kwargs)
+
+        if self._timer.is_event:
+            self._last_output = output
+
+        return self._last_output
+
+    # to be implemented
+    def _forward(self, *args, **kwargs):
+        return NotImplementedError
 
     @property
     def output(self) -> Union[None, tuple, np.ndarray]:
-        return self._output()
-
-    # to be implemented
-    def _output(self) -> Union[None, tuple, np.ndarray]:
-        return None
+        return self._last_output
 
     def history(self, *args):
         """
@@ -179,24 +185,21 @@ class StaticObject(SimObject):
     def __init__(self, interval: Union[int, float] = -1, eval_fun=None):
         super(StaticObject, self).__init__(interval)
         self.eval_fun = eval_fun
-        self._last_output = None
 
+    # override
     def forward(self, *args, **kwargs):
         self._timer.forward()
         if self._timer.is_event:
-            if self.eval_fun is None:
-                self._last_output = self.evaluate(*args, **kwargs)
-            else:
-                self._last_output = self.eval_fun(*args, **kwargs)
+            self._last_output = self._forward(*args, **kwargs)
 
         return self._last_output
 
-    def _output(self) -> Union[None, list, np.ndarray]:
-        return self._last_output
-
-    # to be implemented
-    def evaluate(self, *args, **kwargs):
-        raise NotImplementedError
+    # may be implemented
+    def _forward(self, *args, **kwargs):
+        if self.eval_fun is None:
+            raise NotImplementedError
+        else:
+            return self.eval_fun(*args, **kwargs)
 
 
 class BaseFunction(object):

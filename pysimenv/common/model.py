@@ -1,7 +1,7 @@
 import numpy as np
 from typing import Union, List, Tuple, Optional
 from pysimenv.core.base import SimObject, StaticObject, ArrayType
-from pysimenv.core.system import BaseSystem, MultipleSystem, DynSystem
+from pysimenv.core.system import DynObject, MultipleSystem, DynSystem
 
 
 class SignalGenerator(StaticObject):
@@ -10,12 +10,12 @@ class SignalGenerator(StaticObject):
         self.shaping_fun = shaping_fun
 
     # implementation
-    def evaluate(self):
+    def _forward(self):
         return self.shaping_fun(self._sim_clock.time)
 
 
 class FeedbackControl(MultipleSystem):
-    def __init__(self, system: BaseSystem, control: StaticObject):
+    def __init__(self, system: DynObject, control: StaticObject):
         super(FeedbackControl, self).__init__()
         self.system = system
         self.control = control
@@ -23,7 +23,7 @@ class FeedbackControl(MultipleSystem):
         self.attach_sim_objects([system, control])
 
     # implement
-    def forward(self, r: Optional[np.ndarray] = None):
+    def _forward(self, r: Optional[np.ndarray] = None):
         y = self.system.output
         if r is None:
             u_fb = self.control.forward(y)
@@ -43,7 +43,7 @@ class Sequential(MultipleSystem):
         self.attach_sim_objects(obj_list)
 
     # implement
-    def forward(self, **kwargs):
+    def _forward(self, **kwargs):
         self.first_obj.forward(**kwargs)
         out = self.first_obj.output
         for obj in self.other_obj_list:
@@ -72,7 +72,8 @@ class LinSys(DynSystem):
             C = np.eye(self.state_dim, dtype=np.float32)
         self.C = C
 
-    def derivative(self, x: np.ndarray, u: Union[None, np.ndarray] = None):
+    # implement
+    def _deriv(self, x: np.ndarray, u: Union[None, np.ndarray] = None):
         if self.B is None or u is None:
             x_dot = self.A.dot(x)
         else:
@@ -93,6 +94,7 @@ class FirstOrderLinSys(LinSys):
         super(FirstOrderLinSys, self).__init__(x_0, A, B)
         self.tau = tau
 
+    # implement
     def _output(self) -> Union[None, tuple, np.ndarray]:
         return self.state['x'][0]
 
@@ -109,6 +111,7 @@ class SecondOrderLinSys(LinSys):
         self.zeta = zeta
         self.omega = omega
 
+    # implement
     def _output(self) -> Union[None, tuple, np.ndarray]:
         return self.state['x'][0]
 

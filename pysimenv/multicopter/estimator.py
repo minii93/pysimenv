@@ -22,7 +22,7 @@ class FixedTimeFaultEstimator(DynSystem):
         self.m = m
         self.J = J.copy()
 
-    def derivative(self, z_1: np.ndarray, z_2: np.ndarray, x: np.ndarray, eta: np.ndarray, u: np.ndarray):
+    def _deriv(self, z_1: np.ndarray, z_2: np.ndarray, x: np.ndarray, eta: np.ndarray, u: np.ndarray):
         """
         :param z_1: estimation for the state
         :param z_2: estimation for the actuator fault

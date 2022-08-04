@@ -26,7 +26,7 @@ class FLVelTracking(MultipleSystem):
         self.attach_sim_objects([self.quadrotor, self.vel_control])
 
     # implement
-    def forward(self, v_d: np.ndarray = np.zeros(3)):
+    def _forward(self, v_d: np.ndarray = np.zeros(3)):
         v = self.quadrotor.vel
         eta = self.quadrotor.euler_ang
         omega = self.quadrotor.ang_vel

@@ -24,7 +24,7 @@ class FLVelControl(StaticObject):
         self.k_p_vel = k_p_vel  # (3,) array
 
     # implement
-    def evaluate(self, v: np.ndarray, eta: np.ndarray, omega: np.ndarray, v_d: np.ndarray = np.zeros(3)):
+    def _forward(self, v: np.ndarray, eta: np.ndarray, omega: np.ndarray, v_d: np.ndarray = np.zeros(3)):
         """
         :param v: velocity
         :param eta:
@@ -71,7 +71,7 @@ class QuaternionAttControl(StaticObject):
         self.K = K  # (3, 6) array
 
     # implement
-    def evaluate(self, q: np.ndarray, omega: np.ndarray, q_d: np.ndarray, omega_d: np.ndarray = np.zeros(3))\
+    def _forward(self, q: np.ndarray, omega: np.ndarray, q_d: np.ndarray, omega_d: np.ndarray = np.zeros(3))\
             -> np.ndarray:
         a, phi = quaternion_to_axis_angle(q)
         theta = a*phi
@@ -108,7 +108,7 @@ class QuaternionPosControl(StaticObject):
         self.K = K
 
     # implement
-    def evaluate(self, p: np.ndarray, v: np.ndarray, p_d: np.ndarray, v_d: np.ndarray = np.zeros(3))\
+    def _forward(self, p: np.ndarray, v: np.ndarray, p_d: np.ndarray, v_d: np.ndarray = np.zeros(3))\
             -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         x = np.hstack((p, v))
         x_d = np.hstack((p_d, v_d))
