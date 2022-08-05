@@ -19,7 +19,6 @@ class Simulator(object):
         self.model = model
         self.model.attach_sim_clock(self.sim_clock)
         self.model.attach_log_timer(self.log_timer)
-        self.model.initialize()
 
         self.verbose = verbose
 
@@ -40,6 +39,7 @@ class Simulator(object):
     def propagate(self, dt: float, time: float, save_history: bool = True, *args, **kwargs):
         if save_history:
             self.begin_logging(dt)
+        self.model.initialize()
 
         if self.verbose:
             print("[simulator] Simulating...")

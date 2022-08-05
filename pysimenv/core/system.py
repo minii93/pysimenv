@@ -3,7 +3,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 from abc import ABC
-from typing import Union, Tuple, Dict, Optional
+from typing import Union, Tuple, Dict, Optional, List
 from pysimenv.core.util import SimClock, Timer
 from pysimenv.core.base import SimObject, StateVariable, BaseFunction, ArrayType
 
@@ -304,7 +304,7 @@ class MultipleSystem(DynObject, ABC):
     def __init__(self, interval: Union[int, float] = -1):
         super(MultipleSystem, self).__init__(interval=interval)
         self.name = "model"
-        self.sim_obj_list = []
+        self.sim_obj_list: List[SimObject] = []
         self.sim_obj_num = 0
 
     def attach_sim_objects(self, sim_obj_list: Union[SimObject, list, tuple]):
@@ -336,6 +336,12 @@ class MultipleSystem(DynObject, ABC):
         super(MultipleSystem, self).attach_log_timer(log_timer)
         for sim_obj in self.sim_obj_list:
             sim_obj.attach_log_timer(log_timer)
+
+    # override
+    def initialize(self):
+        super(MultipleSystem, self).initialize()
+        for sim_obj in self.sim_obj_list:
+            sim_obj.initialize()
 
     # override
     def reset(self):

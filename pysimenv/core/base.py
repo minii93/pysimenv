@@ -129,6 +129,9 @@ class SimObject(object):
         self._log_timer = log_timer
 
     def initialize(self):
+        self._initialize()
+
+    def _initialize(self):
         pass
 
     def detach_sim_clock(self):
