@@ -173,7 +173,40 @@ class Differentiator(StaticObject):
             deriv = (u - self.u_prev)/(self.time - self.t_prev)
 
         if self._sim_clock.major_time_step:
-            self.u_prev = u
+            self.u_prev = u.copy()
             self.t_prev = self.time
 
         return deriv
+
+
+class PIDControl(DynObject):
+    def __init__(self, k_p: Union[float, np.ndarray], k_i: Union[float, np.ndarray], k_d: Union[float, np.ndarray],
+                 windup_limit=None,
+                 interval: Union[int, float] = -1):
+        super(PIDControl, self).__init__(initial_states={'e_i': np.zeros_like(k_p)}, interval=interval)
+        self.k_p = k_p
+        self.k_i = k_i
+        self.k_d = k_d
+        self.windup_limit = windup_limit
+        if self.windup_limit:
+            self.state_vars['e_i'].attach_correction_fun(self.clip_windup)
+
+        self.e_prev = None
+        self.t_prev = None
+
+    # implement
+    def _forward(self, e: np.ndarray) -> np.ndarray:
+        self.state_vars['e_i'].set_deriv(deriv=e)
+
+        e_i = self.state['e_i']
+        e_d = np.zeros_like(e) if self.e_prev is None else (e - self.e_prev)/(self.time - self.t_prev)
+        u_pid = self.k_p*e + self.k_i*e_i + self.k_d*e_d
+
+        if self._sim_clock.major_time_step:
+            self.e_prev = e.copy()
+            self.t_prev = self.time
+
+        return u_pid
+
+    def clip_windup(self, e_i: np.ndarray) -> np.ndarray:
+        return np.clip(e_i, self.windup_limit, -self.windup_limit)
