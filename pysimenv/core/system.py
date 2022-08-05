@@ -20,6 +20,8 @@ class DynObject(SimObject):
         state_dim = 0
         if initial_states is not None:
             for name, initial_state in initial_states.items():
+                if isinstance(initial_state, float):
+                    initial_state = np.array([initial_state])
                 var = StateVariable(initial_state)
                 self.state_vars[name] = var
                 state_dim += var.size
