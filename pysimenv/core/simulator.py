@@ -45,6 +45,7 @@ class Simulator(object):
         self.sim_clock.major_time_step = False
 
         self.sim_clock.apply_time(t_0 + dt / 2.)
+        self.log_timer.forward()
         self.model.forward(**kwargs)
         for var in self.model.state_vars.values():
             var.rk4_update_2(dt)
@@ -54,6 +55,7 @@ class Simulator(object):
             var.rk4_update_3(dt)
 
         self.sim_clock.apply_time(t_0 + dt - 10 * self.sim_clock.time_res)
+        self.log_timer.forward()
         self.model.forward(**kwargs)
         for var in self.model.state_vars.values():
             var.rk4_update_4(dt)
