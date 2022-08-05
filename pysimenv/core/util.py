@@ -1,9 +1,5 @@
 import numpy as np
-import matplotlib.pyplot as plt
-import os
-import h5py
 from typing import Optional, Union
-from pytictoc import TicToc
 from pysimenv.core.error import NoSimClockError
 
 
@@ -168,40 +164,7 @@ class Logger:
         except KeyError:
             pass
 
-    @staticmethod
-    def test():
-        print("== Test for Logger ==")
-
-        dt = 0.01
-        sim_clock = SimClock()
-        logger = Logger()
-
-        A = np.array(
-            [[1, dt], [0, 1]]
-        )
-        B = np.array([0, dt])
-        x = np.array([0, 0])
-        u = 1
-
-        t = TicToc()
-        t.tic()
-        for i in range(100):
-            logger.append(time=sim_clock.time, state=x, control=u)
-            x = A.dot(x) + B.dot(u)
-            sim_clock.elapse(dt)
-        t.toc()
-
-        logged_data = logger.get()
-        plt.figure()
-        plt.plot(logged_data['time'], logged_data['state'], label={"Pos. [m]", "Vel. [m/s]"})
-        plt.xlabel("Time [s]")
-        plt.ylabel("State")
-        plt.grid()
-        plt.legend()
-        plt.show()
-
 
 if __name__ == "__main__":
     Timer.test()
-    Logger.test()
 
