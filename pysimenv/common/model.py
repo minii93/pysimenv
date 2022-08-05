@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import numpy as np
 from typing import Union, List, Tuple, Optional
 from pysimenv.core.base import SimObject, StaticObject, ArrayType
@@ -10,8 +11,40 @@ class SignalGenerator(StaticObject):
         self.shaping_fun = shaping_fun
 
     # implementation
-    def _forward(self):
-        return self.shaping_fun(self._sim_clock.time)
+    def _forward(self) -> np.ndarray:
+        return self.shaping_fun(self.time)
+
+
+class Scope(StaticObject):
+    def __init__(self):
+        super(Scope, self).__init__()
+
+    # implementation
+    def _forward(self, **kwargs):
+        self._logger.append(t=self.time, **kwargs)
+
+    def plot(self, show: bool = False):
+        var_names = list(self._logger.keys())
+        var_names.remove('t')
+
+        t = self.history('t')
+        for var_name in var_names:
+            var = self.history(var_name)
+
+            fig, ax = plt.subplots()
+            for i in range(var.shape[1]):
+                ax.plot(t, var[:, i], label=var_name + "_" + str(i))
+                ax.set_xlabel("Time (s)")
+                ax.set_ylabel("Value")
+                ax.grid()
+                ax.legend()
+            fig.tight_layout()
+
+        if show:
+            plt.show()
+        else:
+            plt.draw()
+            plt.pause(0.01)
 
 
 class FeedbackControl(MultipleSystem):
@@ -124,3 +157,23 @@ class Integrator(DynSystem):
             return {'x': u}
 
         super(Integrator, self).__init__({'x': initial_state}, deriv_fun)
+
+
+class Differentiator(StaticObject):
+    def __init__(self):
+        super(Differentiator, self).__init__()
+        self.u_prev = None
+        self.t_prev = None
+
+    # implement
+    def _forward(self, u: np.ndarray):
+        if self.u_prev is None:
+            deriv = np.zeros_like(u)
+        else:
+            deriv = (u - self.u_prev)/(self.time - self.t_prev)
+
+        if self._sim_clock.major_time_step:
+            self.u_prev = u
+            self.t_prev = self.time
+
+        return deriv
