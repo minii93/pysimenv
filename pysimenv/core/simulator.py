@@ -39,6 +39,8 @@ class Simulator(object):
     def propagate(self, dt: float, time: float, save_history: bool = True, *args, **kwargs):
         if save_history:
             self.begin_logging(dt)
+
+        self.sim_clock.set_time_interval(dt)
         self.model.initialize()
 
         if self.verbose:

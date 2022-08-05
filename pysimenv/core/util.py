@@ -11,15 +11,20 @@ class SimClock(object):
     def __init__(self, time: float = 0., time_res: float = 1e-6):
         self.time = time  # Current time
         self.time_res = time_res  # Time resolution
+        self.dt = None
 
     def reset(self):
         self.time = 0.
+        self.dt = None
 
     def apply_time(self, time: float):
         self.time = time
 
-    def apply_time_res(self, time_res: float):
+    def set_time_res(self, time_res: float):
         self.time_res = time_res
+
+    def set_time_interval(self, dt: float):
+        self.dt = dt
 
     def elapse(self, dt: float):
         self.time += dt
