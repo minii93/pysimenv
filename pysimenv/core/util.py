@@ -12,6 +12,7 @@ class SimClock(object):
         self.time = time  # Current time
         self.time_res = time_res  # Time resolution
         self.dt = None
+        self.major_time_step: bool = True
 
     def reset(self):
         self.time = 0.

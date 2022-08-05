@@ -37,11 +37,13 @@ class Simulator(object):
     def step(self, dt: float, **kwargs):
         t_0 = self.sim_clock.time
 
+        self.sim_clock.major_time_step = True
         self.log_timer.forward()
         self.model.forward(**kwargs)
         for var in self.model.state_vars.values():
             var.rk4_update_1(dt)
-        
+        self.sim_clock.major_time_step = False
+
         self.sim_clock.apply_time(t_0 + dt / 2.)
         self.model.forward(**kwargs)
         for var in self.model.state_vars.values():
