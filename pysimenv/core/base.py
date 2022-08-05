@@ -147,6 +147,12 @@ class SimObject(object):
         self._timer.reset()
         self._logger.clear()
 
+    def check_sim_clock(self):
+        assert self._sim_clock is not None, "Attach a sim_clock first!"
+
+    def check_log_timer(self):
+        assert self._log_timer is not None, "Attach a log_timer first!"
+
     @property
     def time(self) -> float:
         if self._sim_clock is None:

@@ -28,26 +28,62 @@ class Simulator(object):
         self.model.reset()
 
     def begin_logging(self, log_interval: float):
+        # log_interval must be greater than or equal to dt
         self.log_timer.turn_on(log_interval)
 
     def finish_logging(self):
         self.log_timer.turn_off()
 
     def step(self, dt: float, **kwargs):
-        self.model.step(dt, **kwargs)
+        t_0 = self.sim_clock.time
+
+        self.log_timer.forward()
+        self.model.forward(**kwargs)
+        for var in self.model.state_vars.values():
+            var.rk4_update_1(dt)
+        
+        self.sim_clock.apply_time(t_0 + dt / 2.)
+        self.model.forward(**kwargs)
+        for var in self.model.state_vars.values():
+            var.rk4_update_2(dt)
+
+        self.model.forward(**kwargs)
+        for var in self.model.state_vars.values():
+            var.rk4_update_3(dt)
+
+        self.sim_clock.apply_time(t_0 + dt - 10 * self.sim_clock.time_res)
+        self.model.forward(**kwargs)
+        for var in self.model.state_vars.values():
+            var.rk4_update_4(dt)
+
+        self.sim_clock.apply_time(t_0 + dt)
 
     def propagate(self, dt: float, time: float, save_history: bool = True, *args, **kwargs):
         if save_history:
             self.begin_logging(dt)
 
         self.sim_clock.set_time_interval(dt)
+        self.model.check_sim_clock()
+        self.model.check_log_timer()
         self.model.initialize()
 
         if self.verbose:
             print("[simulator] Simulating...")
         tic_toc = TicToc()
         tic_toc.tic()
-        self.model.propagate(dt, time, **kwargs)
+
+        # perform propagation
+        iter_num = min(round(time/dt), np.iinfo(np.int32).max)
+        for i in range(iter_num):
+            to_stop, _ = self.model.check_stop_condition()
+            if to_stop:
+                break
+            self.step(dt, **kwargs)
+
+        self.log_timer.forward()
+        self.model.forward(**kwargs)
+
+        # self.model.propagate(dt, time, **kwargs)
         elapsed_time = tic_toc.tocvalue()
 
         if self.verbose:

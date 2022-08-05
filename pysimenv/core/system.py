@@ -36,46 +36,6 @@ class DynObject(SimObject):
             for name, state in kwargs.items():
                 self.state_vars[name].apply_state(state)
 
-    def step(self, dt: float, **kwargs) -> None:
-        t_0 = self._sim_clock.time
-
-        self._log_timer.forward()
-        self.forward(**kwargs)
-        for var in self.state_vars.values():
-            var.rk4_update_1(dt)
-
-        self._sim_clock.apply_time(t_0 + dt / 2)
-        self._log_timer.forward()
-        self.forward(**kwargs)
-        for var in self.state_vars.values():
-            var.rk4_update_2(dt)
-
-        self.forward(**kwargs)
-        for var in self.state_vars.values():
-            var.rk4_update_3(dt)
-
-        self._sim_clock.apply_time(t_0 + dt - 10 * self._sim_clock.time_res)
-        self._log_timer.forward()
-        self.forward(**kwargs)
-        for var in self.state_vars.values():
-            var.rk4_update_4(dt)
-
-        self._sim_clock.apply_time(t_0 + dt)
-
-    def propagate(self, dt: float, time: float, **kwargs):
-        assert self._sim_clock is not None, "Attach a sim_clock first!"
-        assert self._log_timer is not None, "Attach a log_timer first!"
-
-        iter_num = min(round(time/dt), np.iinfo(np.int32).max)
-        for i in range(iter_num):
-            to_stop, _ = self.check_stop_condition()
-            if to_stop:
-                break
-            self.step(dt, **kwargs)
-
-        self._log_timer.forward()
-        self.forward(**kwargs)
-
     def default_plot(self, show=False, var_keys=None, var_ind_dict=None, var_names_dict=None):
         if var_keys is None:
             var_keys = list(self._logger.keys())
@@ -348,6 +308,18 @@ class MultipleSystem(DynObject, ABC):
         super(MultipleSystem, self).reset()
         for sim_obj in self.sim_obj_list:
             sim_obj.reset()
+
+    # override
+    def check_sim_clock(self):
+        super(MultipleSystem, self).check_sim_clock()
+        for sim_obj in self.sim_obj_list:
+            sim_obj.check_sim_clock()
+
+    # override
+    def check_log_timer(self):
+        super(MultipleSystem, self).check_log_timer()
+        for sim_obj in self.sim_obj_list:
+            sim_obj.check_log_timer()
 
     # implement
     def check_stop_condition(self) -> Tuple[bool, list]:
