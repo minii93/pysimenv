@@ -9,7 +9,7 @@ class ClosedLoopSys(MultipleSystem):
     def __init__(self):
         super(ClosedLoopSys, self).__init__()
 
-        ## open-loop system
+        # open-loop system
         zeta = 0.1
         omega = 1.
         A = np.array([[0., 1.], [-omega**2, -2*zeta*omega]])
@@ -31,7 +31,7 @@ class ClosedLoopSys(MultipleSystem):
         self.attach_sim_objects([self.linear_sys, self.lqr_control])
 
     # implement
-    def forward(self):
+    def _forward(self):
         x = self.linear_sys.state['x']
         u_lqr = self.lqr_control.forward(x=x)
         self.linear_sys.forward(u=u_lqr)
