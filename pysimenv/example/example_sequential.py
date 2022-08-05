@@ -5,7 +5,7 @@ from pysimenv.core.simulator import Simulator
 
 
 def main():
-    signal_generator = SignalGenerator(lambda t: np.sin(0.2*np.pi*t))
+    signal_generator = SignalGenerator(lambda t: np.array([np.sin(0.2*np.pi*t)]))
 
     zeta = 0.5
     omega = 1.
@@ -13,7 +13,7 @@ def main():
         [0., 1.],
         [-omega**2, -2*zeta*omega]
     ])
-    B = np.array([0., omega**2])
+    B = np.array([[0.], [omega**2]])
     linear_system = DynSystem(
         initial_states={'x': [0., 0.]},
         deriv_fun=lambda x, u: {'x': A.dot(x) + B.dot(u)})

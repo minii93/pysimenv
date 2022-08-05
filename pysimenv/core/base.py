@@ -129,6 +129,9 @@ class SimObject(object):
         self._log_timer = log_timer
 
     def initialize(self):
+        self._initialize()
+
+    def _initialize(self):
         pass
 
     def detach_sim_clock(self):
@@ -143,6 +146,12 @@ class SimObject(object):
         self.flag = SimObject.FLAG_OPERATING
         self._timer.reset()
         self._logger.clear()
+
+    def check_sim_clock(self):
+        assert self._sim_clock is not None, "Attach a sim_clock first!"
+
+    def check_log_timer(self):
+        assert self._log_timer is not None, "Attach a log_timer first!"
 
     @property
     def time(self) -> float:

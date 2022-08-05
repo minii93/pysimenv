@@ -1,9 +1,5 @@
 import numpy as np
-import matplotlib.pyplot as plt
-import os
-import h5py
 from typing import Optional, Union
-from pytictoc import TicToc
 from pysimenv.core.error import NoSimClockError
 
 
@@ -11,15 +7,21 @@ class SimClock(object):
     def __init__(self, time: float = 0., time_res: float = 1e-6):
         self.time = time  # Current time
         self.time_res = time_res  # Time resolution
+        self.dt = None
+        self.major_time_step: bool = True
 
     def reset(self):
         self.time = 0.
+        self.dt = None
 
     def apply_time(self, time: float):
         self.time = time
 
-    def apply_time_res(self, time_res: float):
+    def set_time_res(self, time_res: float):
         self.time_res = time_res
+
+    def set_time_interval(self, dt: float):
+        self.dt = dt
 
     def elapse(self, dt: float):
         self.time += dt
@@ -162,40 +164,7 @@ class Logger:
         except KeyError:
             pass
 
-    @staticmethod
-    def test():
-        print("== Test for Logger ==")
-
-        dt = 0.01
-        sim_clock = SimClock()
-        logger = Logger()
-
-        A = np.array(
-            [[1, dt], [0, 1]]
-        )
-        B = np.array([0, dt])
-        x = np.array([0, 0])
-        u = 1
-
-        t = TicToc()
-        t.tic()
-        for i in range(100):
-            logger.append(time=sim_clock.time, state=x, control=u)
-            x = A.dot(x) + B.dot(u)
-            sim_clock.elapse(dt)
-        t.toc()
-
-        logged_data = logger.get()
-        plt.figure()
-        plt.plot(logged_data['time'], logged_data['state'], label={"Pos. [m]", "Vel. [m/s]"})
-        plt.xlabel("Time [s]")
-        plt.ylabel("State")
-        plt.grid()
-        plt.legend()
-        plt.show()
-
 
 if __name__ == "__main__":
     Timer.test()
-    Logger.test()
 
