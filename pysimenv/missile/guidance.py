@@ -2,8 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from typing import Union
 from pysimenv.core.base import StaticObject
-from pysimenv.core.system import MultipleSystem
-from pysimenv.common.model import Integrator
+from pysimenv.core.system import DynObject
 from pysimenv.missile.model import PlanarManVehicle2dof
 from pysimenv.missile.util import RelKin2dim
 
@@ -24,13 +23,13 @@ class PurePNG2dim(StaticObject):
         return a_M
 
 
-class IACBPNG(MultipleSystem):
+class IACBPNG(DynObject):
     """
     Biased PNG with terminal-angle constraint (impact angle control)
     """
     def __init__(self, N: float, tau: float, theta_M_0: float, theta_M_f: float, theta_T: float, lam_0: float,
                  sigma_max: float = float('inf'), b_max: float = float('inf')):
-        super(IACBPNG, self).__init__()
+        super(IACBPNG, self).__init__(initial_states={'B': np.array([0.])})
 
         # Guidance parameters
         self.N = N
@@ -43,8 +42,6 @@ class IACBPNG(MultipleSystem):
         self.b_max = b_max
 
         self.phase = 0  # 0: BPNG, 1: DPP, 2: BPNG
-        self.bias_integrator = Integrator(np.array([0.]))
-        self.attach_sim_objects([self.bias_integrator])
 
     @classmethod
     def reference_value(cls, theta_M_0, theta_M_f, theta_T, lam_0, N, V_M, V_T):
@@ -66,7 +63,7 @@ class IACBPNG(MultipleSystem):
 
         B_ref = IACBPNG.reference_value(
             self.theta_M_0, self.theta_M_f, self.theta_T, self.lam_0, self.N, V_M, V_T)
-        B = self.bias_integrator.state['x'][0]
+        B = self.state['B'][0]
 
         b_1 = 1./self.tau*(B_ref - B)
         b_2 = (1. - self.N)*omega
@@ -89,7 +86,7 @@ class IACBPNG(MultipleSystem):
         a_b = V_M*b
         a_M = a_png + a_b
 
-        self.bias_integrator.forward(u=b)
+        self.state_vars['B'].set_deriv(deriv=b)
         self._logger.append(t=self.time, B_ref=B_ref, B=B, b=b, a_png=a_png, a_b=a_b)
         return a_M
 
