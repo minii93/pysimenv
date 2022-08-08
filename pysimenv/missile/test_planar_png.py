@@ -2,7 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pysimenv.core.simulator import Simulator
 from pysimenv.missile.model import PlanarMissile2dof, PlanarNonManVehicle2dof
-from pysimenv.missile.engagement import PurePNG2dimEngagement
+from pysimenv.missile.guidance import PurePNG2dim
+from pysimenv.missile.engagement import Engagement2dim
 
 
 def main():
@@ -17,7 +18,8 @@ def main():
     target.name = "target"
 
     # Method 1
-    model = PurePNG2dimEngagement(missile, target)
+    guidance = PurePNG2dim(N=3.0)
+    model = Engagement2dim(missile, target, guidance)
     simulator = Simulator(model)
     simulator.propagate(dt=0.01, time=30., save_history=True)
 

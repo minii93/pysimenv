@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from typing import Tuple
 from pysimenv.core.base import ArrayType
-from pysimenv.core.system import DynSystem, DynObject
+from pysimenv.core.system import DynSystem
 from pysimenv.common.util import wrap_to_pi
 
 

@@ -2,8 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from typing import Tuple
 from pysimenv.core.system import MultipleSystem
-from pysimenv.missile.model import PlanarMissile2dof, PlanarManVehicle2dof
-from pysimenv.missile.guidance import PurePNG2dim, IACBPNG
+from pysimenv.missile.model import PlanarManVehicle2dof
+from pysimenv.missile.guidance import Guidance2dim
 from pysimenv.missile.util import RelKin2dim, CloseDistCond, closest_instant, lin_interp
 
 
@@ -12,14 +12,15 @@ class Engagement2dim(MultipleSystem):
     MISSILE_STOP = 2
     IS_OUT_OF_VIEW = 3
 
-    def __init__(self, missile: PlanarMissile2dof, target: PlanarManVehicle2dof):
+    def __init__(self, missile: PlanarManVehicle2dof, target: PlanarManVehicle2dof, guidance: Guidance2dim):
         super(Engagement2dim, self).__init__()
         self.missile = missile
         self.target = target
+        self.guidance = guidance
         self.rel_kin = RelKin2dim()
         self.close_dist_cond = CloseDistCond(r_threshold=10.0)
 
-        self.attach_sim_objects([self.missile, self.target])
+        self.attach_sim_objects([self.missile, self.target, self.guidance])
 
     # override
     def reset(self):
@@ -38,6 +39,9 @@ class Engagement2dim(MultipleSystem):
         x_T = self.target.state['x']
         self.rel_kin.evaluate(x_M, x_T)
         self.close_dist_cond.evaluate(self.rel_kin.r)
+
+        a_y_cmd = self.guidance.forward(self.missile, self.target, self.rel_kin)
+        self.missile.forward(a_M_cmd=np.array([0., a_y_cmd]))
         self.target.forward()
 
     # implement
@@ -53,18 +57,10 @@ class Engagement2dim(MultipleSystem):
             to_stop = True
             self.flag = self.MISSILE_STOP
 
-        if self.is_out_of_view():  # out of field-of-view limit
-            to_stop = True
-            self.flag = self.IS_OUT_OF_VIEW
-
         return to_stop, self.flag
 
     def intercepted(self) -> bool:
         return self.close_dist_cond.check()
-
-    def is_out_of_view(self) -> bool:
-        sigma = self.rel_kin.sigma
-        return self.missile.is_out_of_view(sigma)
 
     def state_on_closest_instant(self):
         t = self.missile.history('t')
@@ -225,32 +221,4 @@ class Engagement2dim(MultipleSystem):
 
         return fig_axs
 
-
-class PurePNG2dimEngagement(Engagement2dim):
-    def __init__(self, missile: PlanarMissile2dof, target: PlanarManVehicle2dof):
-        super(PurePNG2dimEngagement, self).__init__(missile, target)
-
-        self.pure_png = PurePNG2dim(N=3.0)
-        self.attach_sim_objects([self.pure_png])
-
-    # implement
-    def forward(self):
-        super(PurePNG2dimEngagement, self).forward()
-        V_M = self.missile.V
-        omega = self.rel_kin.omega
-
-        a_y_cmd = self.pure_png.forward(V_M, omega)
-        self.missile.forward(a_M_cmd=np.array([0, a_y_cmd]))
-
-
-class IACBPNGEngagement(Engagement2dim):
-    def __init__(self, missile: PlanarMissile2dof, target: PlanarManVehicle2dof, bpng: IACBPNG):
-        super(IACBPNGEngagement, self).__init__(missile, target)
-        self.bpng = bpng
-        self.attach_sim_objects([self.bpng])
-
-    def forward(self):
-        super(IACBPNGEngagement, self).forward()
-        a_y_cmd = self.bpng.forward(self.missile, self.target, self.rel_kin)
-        self.missile.forward(a_M_cmd=np.array([0., a_y_cmd]))
 

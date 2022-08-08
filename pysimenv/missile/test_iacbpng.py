@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from pysimenv.core.simulator import Simulator
 from pysimenv.missile.model import PlanarMissile2dof, PlanarNonManVehicle2dof
 from pysimenv.missile.guidance import IACBPNG
-from pysimenv.missile.engagement import IACBPNGEngagement
+from pysimenv.missile.engagement import Engagement2dim
 
 
 def main():
@@ -23,7 +23,7 @@ def main():
     sigma_max = np.deg2rad(45.)
     bpng = IACBPNG(N=3., tau=1., theta_M_0=theta_M_0, theta_M_f=theta_M_f, theta_T=theta_T,
                    lam_0=0., sigma_max=sigma_max, b_max=0.35)
-    model = IACBPNGEngagement(missile, target, bpng)
+    model = Engagement2dim(missile, target, bpng)
     simulator = Simulator(model)
     simulator.propagate(dt=0.01, time=30., save_history=True)
 

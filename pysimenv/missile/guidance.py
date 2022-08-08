@@ -1,29 +1,39 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import Union
-from pysimenv.core.base import StaticObject
+from pysimenv.core.base import SimObject, StaticObject
 from pysimenv.core.system import DynObject
 from pysimenv.missile.model import PlanarManVehicle2dof
 from pysimenv.missile.util import RelKin2dim
 
 
-class PurePNG2dim(StaticObject):
+class Guidance2dim(SimObject):
+    def __init__(self, interval: Union[int, float] = -1):
+        super(Guidance2dim, self).__init__(interval=interval)
+
+    # to be implemented
+    def _forward(self, missile: PlanarManVehicle2dof, target: PlanarManVehicle2dof, rel_kin: RelKin2dim) -> float:
+        raise NotImplementedError
+
+
+class PurePNG2dim(StaticObject, Guidance2dim):
     def __init__(self, N: float = 3.0, interval: Union[int, float] = -1):
         super(PurePNG2dim, self).__init__(interval=interval)
         self.N = N
 
     # implement
-    def _forward(self, V_M, omega):
+    def _forward(self, missile: PlanarManVehicle2dof, target: PlanarManVehicle2dof, rel_kin: RelKin2dim) -> float:
         """
-        :param V_M: speed of the missile
-        :param omega: LOS rate
-        :return: acceleration command a_M
+        :return: acceleration command a_y_cmd
         """
-        a_M = self.N*V_M*omega
-        return a_M
+        V_M = missile.V  # speed of the missile
+        omega = rel_kin.omega  # LOS rate
+
+        a_y_cmd = self.N*V_M*omega
+        return a_y_cmd
 
 
-class IACBPNG(DynObject):
+class IACBPNG(DynObject, Guidance2dim):
     """
     Biased PNG with terminal-angle constraint (impact angle control)
     """
