@@ -1,21 +1,20 @@
 import numpy as np
-import matplotlib.pyplot as plt
 from pysimenv.core.simulator import Simulator
 from pysimenv.missile.model import PlanarMissile2dof
 
 
-print("== Test for PlanarMissile2dof ==")
-initial_state = [-5000., 0., 200., np.deg2rad(30.)]
-missile = PlanarMissile2dof(initial_state)
+def main():
+    print("== Test for PlanarMissile2dof ==")
+    missile = PlanarMissile2dof(
+        initial_state=[-5000., 0., 200., np.deg2rad(30.)])
+    simulator = Simulator(missile)
+    simulator.propagate(dt=0.01, time=50., save_history=True, a_M_cmd=np.array([0., -5.]))
 
-a_M = np.array([0., -5.])
-dt = 0.01
-time = 50.
+    missile.report()
+    missile.plot()
+    missile.plot_path(show=True)
 
-simulator = Simulator(missile)
-simulator.propagate(dt, time, True, a_M=a_M)
 
-missile.report()
-missile.plot()
-missile.plot_path()
-plt.show()
+if __name__ == "__main__":
+    main()
+

@@ -205,8 +205,8 @@ class PurePNG2dimEngagement(Engagement2dim):
         V_M = self.missile.V
         omega = self.rel_kin.omega
 
-        a_M = self.pure_png.forward(V_M, omega)
-        self.missile.forward(a_M=np.array([0, a_M]))
+        a_y_cmd = self.pure_png.forward(V_M, omega)
+        self.missile.forward(a_M_cmd=np.array([0, a_y_cmd]))
 
 
 class IACBPNGEngagement(Engagement2dim):
@@ -218,5 +218,5 @@ class IACBPNGEngagement(Engagement2dim):
     def forward(self):
         super(IACBPNGEngagement, self).forward()
         a_y_cmd = self.bpng.forward(self.missile, self.target, self.rel_kin)
-        self.missile.forward(a_M=np.array([0., a_y_cmd]))
+        self.missile.forward(a_M_cmd=np.array([0., a_y_cmd]))
 
