@@ -130,11 +130,15 @@ class Logger:
     def append(self, **kwargs):
         if self.is_operating:
             for key in kwargs.keys():
+                arr = kwargs[key]
+                if isinstance(arr, np.ndarray):
+                    arr = arr.copy()
+
                 try:
-                    self.data[key].append(kwargs[key])
+                    self.data[key].append(arr)
                 except KeyError:
                     self.data[key] = []
-                    self.data[key].append(kwargs[key])
+                    self.data[key].append(arr)
 
     def get(self, *args) -> Union[None, np.ndarray, dict]:
         if self.is_empty():
