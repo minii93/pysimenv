@@ -4,10 +4,14 @@ from typing import Tuple
 from pysimenv.core.system import MultipleSystem
 from pysimenv.missile.model import PlanarMissile2dof, PlanarManVehicle2dof
 from pysimenv.missile.guidance import PurePNG2dim, IACBPNG
-from pysimenv.missile.util import RelKin2dim, CloseDistCond, miss_distance, closest_instant, lin_interp
+from pysimenv.missile.util import RelKin2dim, CloseDistCond, closest_instant, lin_interp
 
 
 class Engagement2dim(MultipleSystem):
+    INTERCEPTED = 1
+    MISSILE_STOP = 2
+    IS_OUT_OF_VIEW = 3
+
     def __init__(self, missile: PlanarMissile2dof, target: PlanarManVehicle2dof):
         super(Engagement2dim, self).__init__()
         self.missile = missile
@@ -29,7 +33,7 @@ class Engagement2dim(MultipleSystem):
         self.rel_kin.evaluate(x_M, x_T)
 
     # implement
-    def forward(self):
+    def _forward(self):
         x_M = self.missile.state['x']
         x_T = self.target.state['x']
         self.rel_kin.evaluate(x_M, x_T)
@@ -43,15 +47,15 @@ class Engagement2dim(MultipleSystem):
         missile_stop, _ = self.missile.check_stop_condition()
         if self.intercepted():  # probable interception
             to_stop = True
-            self.flag = 1
+            self.flag = self.INTERCEPTED
 
         if missile_stop:  # stop due to the missile
             to_stop = True
-            self.flag = 2
+            self.flag = self.MISSILE_STOP
 
         if self.is_out_of_view():  # out of field-of-view limit
             to_stop = True
-            self.flag = 3
+            self.flag = self.IS_OUT_OF_VIEW
 
         return to_stop, self.flag
 
@@ -62,43 +66,67 @@ class Engagement2dim(MultipleSystem):
         sigma = self.rel_kin.sigma
         return self.missile.is_out_of_view(sigma)
 
-    def miss_distance(self) -> float:
-        x_M = self.missile.history('x')
-        x_T = self.target.history('x')
-
-        p_M = x_M[:, 0:2]
-        p_T = x_T[:, 0:2]
-        d_miss = miss_distance(p_M, p_T)
-        return d_miss
-
     def state_on_closest_instant(self):
+        t = self.missile.history('t')
         x_M = self.missile.history('x')
         x_T = self.target.history('x')
 
         p_M = x_M[:, 0:2]
         p_T = x_T[:, 0:2]
         index_close, xi_close = closest_instant(p_M, p_T)
+
+        t_close = lin_interp(t[index_close], t[index_close + 1], xi_close)
         x_M_close = lin_interp(x_M[index_close], x_M[index_close + 1], xi_close)
         x_T_close = lin_interp(x_T[index_close], x_T[index_close + 1], xi_close)
-        return x_M_close, x_T_close
+
+        return t_close, x_M_close, x_T_close
+
+    def miss_distance(self) -> float:
+        _, x_M_c, x_T_c = self.state_on_closest_instant()
+
+        p_M_c = x_M_c[0:2]
+        p_T_c = x_T_c[0:2]
+
+        d_miss = np.linalg.norm(p_M_c - p_T_c)
+        return d_miss
+
+    def impact_angle(self) -> float:
+        _, x_M_c, x_T_c = self.state_on_closest_instant()
+        gamma_M_c = x_M_c[3]
+        gamma_T_c = x_T_c[3]
+        return gamma_M_c - gamma_T_c
+
+    def impact_time(self) -> float:
+        t_c, _, _ = self.state_on_closest_instant()
+        return t_c
 
     def report(self):
         self.missile.report()
-        if self.flag == 1:
+        if self.flag == self.INTERCEPTED:
             print("[engagement] The target has been intercepted!")
         else:
             print("[engagement] The target has been missed!")
 
-        d_miss = self.miss_distance()
-        x_M_close, x_T_close = self.state_on_closest_instant()
+        _, x_M_c, x_T_c = self.state_on_closest_instant()
 
-        print("[engagement] Miss distance: {:.6f} (m)".format(d_miss))
-        print("[engagement] Missile state on the closest instant: {:.2f}(m), {:.2f}(m), {:.2f}(m/s), {:.2f}(deg) \n".
-              format(x_M_close[0], x_M_close[1], x_M_close[2], np.rad2deg(x_M_close[3]))
+        print("[engagement] Missile state on the closest instant: {:.2f}(m), {:.2f}(m), {:.2f}(m/s), {:.2f}(deg) ".
+              format(x_M_c[0], x_M_c[1], x_M_c[2], np.rad2deg(x_M_c[3]))
               )
         print("[engagement] Target state on the closest instant: {:.2f}(m), {:.2f}(m), {:.2f}(m/s), {:.2f}(deg) \n".
-              format(x_T_close[0], x_T_close[1], x_T_close[2], np.rad2deg(x_T_close[3]))
+              format(x_T_c[0], x_T_c[1], x_T_c[2], np.rad2deg(x_T_c[3]))
               )
+
+    def report_miss_distance(self):
+        d_miss = self.miss_distance()
+        print("[engagement] Miss distance: {:.6f} (m)".format(d_miss))
+
+    def report_impact_angle(self):
+        gamma_imp = self.impact_angle()
+        print("[engagement] Impact angle: {:.2f} (deg)".format(np.rad2deg(gamma_imp)))
+
+    def report_impact_time(self):
+        t_imp = self.impact_time()
+        print("[engagement] Impact time: {:.2f} (s)".format(t_imp))
 
     def plot_path(self):
         fig_axs = dict()
@@ -112,87 +140,88 @@ class Engagement2dim(MultipleSystem):
 
         return fig_axs
 
+    def plot_zem(self):
+        fig_axs = dict()
+
+        relKin = RelKin2dim()
+        t = self.missile.history('t')
+        x_M = self.missile.history('x')
+        x_T = self.target.history('x')
+
+        zem = []
+        for i in range(x_M.shape[0]):
+            x_M_ = x_M[i, :]
+            x_T_ = x_T[i, :]
+            relKin.evaluate(x_M_, x_T_)
+
+            zem.append(relKin.zem)
+        zem = np.array(zem)
+
+        fig, ax = plt.subplots()
+        ax.set_title("ZEM")
+        ax.plot(t[:-1], zem[:-1], label="ZEM")
+        ax.set_xlabel("Time (s)")
+        ax.set_ylabel("ZEM (m)")
+        ax.grid()
+        ax.legend()
+
+        fig_axs['Rel. Kin. add.'] = {'fig': fig, 'ax': ax}
+        return fig_axs
+
     def plot_rel_kin(self):
         fig_axs = dict()
 
         # plots for rel. kin.
-        time_list = self.missile.history('t')
-        x_M_list = self.missile.history('x')
-        x_T_list = self.target.history('x')
-
         relKin = RelKin2dim()
-        r_list = []
-        sigma_list = []
-        lam_list = []
-        omega_list = []
+        t = self.missile.history('t')
+        x_M = self.missile.history('x')
+        x_T = self.target.history('x')
 
-        zem_list = []
+        r = []
+        sigma = []
+        lam = []
+        omega = []
+        for i in range(x_M.shape[0]):
+            x_M_ = x_M[i, :]
+            x_T_ = x_T[i, :]
+            relKin.evaluate(x_M_, x_T_)
 
-        for i in range(x_M_list.shape[0]):
-            x_M = x_M_list[i, :]
-            x_T = x_T_list[i, :]
+            r.append(relKin.r)
+            sigma.append(relKin.sigma)
+            lam.append(relKin.lam)
+            omega.append(relKin.omega)
 
-            relKin.evaluate(x_M, x_T)
+        r = np.array(r)
+        sigma = np.array(sigma)
+        lam = np.array(lam)
+        omega = np.array(omega)
 
-            r_list.append(relKin.r)
-            sigma_list.append(relKin.sigma)
-            lam_list.append(relKin.lam)
-            omega_list.append(relKin.omega)
+        fig, ax = plt.subplots(4, 1, figsize=(6, 8))
+        ax[0].set_title("Rel. dist")
+        ax[0].plot(t[:-1], r[:-1], label="Rel. dist")
+        ax[0].set_xlabel("Time (s)")
+        ax[0].set_ylabel("r (m)")
+        ax[0].grid()
 
-            zem_list.append(relKin.zem)
+        ax[1].set_title("Look angle")
+        ax[1].plot(t[:-1], np.rad2deg(sigma[:-1]), label="look angle")
+        ax[1].set_xlabel("Time (s)")
+        ax[1].set_ylabel("sigma (deg)")
+        ax[1].grid()
 
-        r_list = np.array(r_list)
-        sigma_list = np.array(sigma_list)
-        lam_list = np.array(lam_list)
-        omega_list = np.array(omega_list)
+        ax[2].set_title("LOS angle")
+        ax[2].plot(t[:-1], np.rad2deg(lam[:-1]), label="LOS angle")
+        ax[2].set_xlabel("Time (s)")
+        ax[2].set_ylabel("lambda (deg)")
+        ax[2].grid()
 
-        zem_list = np.array(zem_list)
-
-        fig2, ax2 = plt.subplots(2, 2)
-        fig2.tight_layout()
-        ax2_1 = ax2[0, 0]
-        ax2_1.set_title("Rel. dist")
-        ax2_1.plot(time_list[:-1], r_list[:-1], label="Rel. dist")
-        ax2_1.set_xlabel("Time (s)")
-        ax2_1.set_ylabel("Rel. dist (m)")
-        ax2_1.grid()
-        ax2_1.legend()
-
-        ax2_2 = ax2[0, 1]
-        ax2_2.set_title("Look angle")
-        ax2_2.plot(time_list[:-1], np.rad2deg(sigma_list[:-1]), label="look angle")
-        ax2_2.set_xlabel("Time (s)")
-        ax2_2.set_ylabel("Look angle (deg)")
-        ax2_2.grid()
-        ax2_2.legend()
-
-        ax2_3 = ax2[1, 0]
-        ax2_3.set_title("LOS angle")
-        ax2_3.plot(time_list[:-1], np.rad2deg(lam_list[:-1]), label="LOS angle")
-        ax2_3.set_xlabel("Time (s)")
-        ax2_3.set_ylabel("LOS angle (deg)")
-        ax2_3.grid()
-        ax2_3.legend()
-
-        ax2_4 = ax2[1, 1]
-        ax2_4.set_title("LOS rate")
-        ax2_4.plot(time_list[:-1], np.rad2deg(omega_list[:-1]), label="LOS rate")
-        ax2_4.set_xlabel("Time (s)")
-        ax2_4.set_ylabel("LOS rate (deg/s)")
-        ax2_4.grid()
-        ax2_4.legend()
-
-        fig_axs['Rel. Kin.'] = {'fig': fig2, 'ax': ax2}
-
-        fig3, ax3 = plt.subplots()
-        ax3.set_title("ZEM")
-        ax3.plot(time_list[:-1], zem_list[:-1], label="ZEM")
-        ax3.set_xlabel("Time (s)")
-        ax3.set_ylabel("ZEM (m)")
-        ax3.grid()
-        ax3.legend()
-
-        fig_axs['Rel. Kin. add.'] = {'fig': fig3, 'ax': ax3}
+        ax[3].set_title("LOS rate")
+        ax[3].plot(t[:-1], np.rad2deg(omega[:-1]), label="LOS rate")
+        ax[3].set_xlabel("Time (s)")
+        ax[3].set_ylabel("omega (deg/s)")
+        ax[3].grid()
+        fig.tight_layout()
+        fig_axs['Rel. Kin.'] = {'fig': fig, 'ax': ax}
 
         return fig_axs
 

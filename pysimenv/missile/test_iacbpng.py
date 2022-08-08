@@ -30,6 +30,9 @@ def main():
     model.plot_path()
     model.plot_rel_kin()
     model.report()
+    model.report_miss_distance()
+    model.report_impact_angle()
+    model.report_impact_time()
     bpng.plot_bias()
     bpng.plot_bias_integral()
 

@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Tuple
+from typing import Tuple, Union
 from pysimenv.core.base import BaseFunction
 from pysimenv.common.util import distance_traj_segment
 
@@ -128,6 +128,6 @@ def closest_instant(p_M: np.ndarray, p_T: np.ndarray, search_range: int = 1) -> 
     return index_close, xi_close
 
 
-def lin_interp(x_i: np.ndarray, x_f: np.ndarray, xi: float) -> np.ndarray:
+def lin_interp(x_i: Union[float, np.ndarray], x_f: Union[float, np.ndarray], xi: float) -> Union[float, np.ndarray]:
     x = x_i + xi*(x_f - x_i)
     return x

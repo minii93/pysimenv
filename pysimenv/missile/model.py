@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from typing import Optional, Tuple
+from typing import Tuple
 from pysimenv.core.base import ArrayType
 from pysimenv.core.system import DynSystem, DynObject
 from pysimenv.common.util import wrap_to_pi
@@ -160,6 +160,10 @@ class PlanarNonManVehicle2dof(PlanarManVehicle2dof):
 
 
 class PlanarMissile2dof(PlanarManVehicle2dof):
+    NORMAL = 0
+    STALLED = 1
+    COLLIDED = 2
+
     def __init__(self, initial_state: ArrayType):
         super(PlanarMissile2dof, self).__init__(initial_state)
         self.name = "missile"
@@ -180,10 +184,10 @@ class PlanarMissile2dof(PlanarManVehicle2dof):
         to_stop = False
         if self.is_stalled():
             to_stop = True
-            self.flag = 1
+            self.flag = self.STALLED
         if self.is_collided():
             to_stop = True
-            self.flag = 2
+            self.flag = self.COLLIDED
         return to_stop, self.flag
 
     def is_stalled(self) -> bool:
@@ -197,14 +201,14 @@ class PlanarMissile2dof(PlanarManVehicle2dof):
 
     def report(self):
         np.set_printoptions(precision=2, suppress=True)
-        print("[{:s}] Final state [m, m, m/s, deg]:".format(self.name))
+        x_M_f = self.state['x']
 
-        final_state = self.state['x'].copy()
-        final_state[3] = np.rad2deg(final_state[3])
-        print(final_state)
-        if self.flag == 0:
-            print("[{:s}] Status: normal".format(self.name))
-        elif self.flag == 1:
-            print("[{:s}] Status: stalled".format(self.name))
-        elif self.flag == 2:
-            print("[{:s}] Status: collided".format(self.name))
+        print("[{:s}] Final state: {:.2f}(m), {:.2f}(m), {:.2f}(m/s), {:.2f}(deg)".format(
+            self.name, x_M_f[0], x_M_f[1], x_M_f[2], np.rad2deg(x_M_f[3])))
+
+        if self.flag == self.NORMAL:
+            print("[{:s}] Status: normal \n".format(self.name))
+        elif self.flag == self.STALLED:
+            print("[{:s}] Status: stalled \n".format(self.name))
+        elif self.flag == self.COLLIDED:
+            print("[{:s}] Status: collided \n".format(self.name))
