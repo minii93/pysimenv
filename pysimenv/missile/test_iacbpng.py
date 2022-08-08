@@ -27,7 +27,8 @@ def main():
     simulator = Simulator(model)
     simulator.propagate(dt=0.01, time=30., save_history=True)
 
-    model.plot()
+    model.plot_path()
+    model.plot_rel_kin()
     model.report()
     bpng.plot_bias()
     bpng.plot_bias_integral()

@@ -100,7 +100,7 @@ class Engagement2dim(MultipleSystem):
               format(x_T_close[0], x_T_close[1], x_T_close[2], np.rad2deg(x_T_close[3]))
               )
 
-    def plot(self):
+    def plot_path(self):
         fig_axs = dict()
 
         fig_ax = self.missile.plot_path()
@@ -109,6 +109,11 @@ class Engagement2dim(MultipleSystem):
         fig1, ax1 = fig_ax['fig'], fig_ax['ax']
         fig1.suptitle("2-dim flight path")
         fig_axs['path'] = {'fig': fig1, 'ax': ax1}
+
+        return fig_axs
+
+    def plot_rel_kin(self):
+        fig_axs = dict()
 
         # plots for rel. kin.
         time_list = self.missile.history('t')
