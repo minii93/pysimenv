@@ -44,6 +44,10 @@ class Engagement2dim(MultipleSystem):
         self.missile.forward(a_M_cmd=np.array([0., a_y_cmd]))
         self.target.forward()
 
+        self._logger.append(
+            t=self.time, r=self.rel_kin.r, sigma=self.rel_kin.sigma, lam=self.rel_kin.lam, omega=self.rel_kin.omega
+        )
+
     # implement
     def check_stop_condition(self) -> Tuple[bool, int]:
         to_stop = False
@@ -167,31 +171,12 @@ class Engagement2dim(MultipleSystem):
     def plot_rel_kin(self):
         fig_axs = dict()
 
-        # plots for rel. kin.
-        relKin = RelKin2dim()
-        t = self.missile.history('t')
-        x_M = self.missile.history('x')
-        x_T = self.target.history('x')
-
-        r = []
-        sigma = []
-        lam = []
-        omega = []
-        for i in range(x_M.shape[0]):
-            x_M_ = x_M[i, :]
-            x_T_ = x_T[i, :]
-            relKin.evaluate(x_M_, x_T_)
-
-            r.append(relKin.r)
-            sigma.append(relKin.sigma)
-            lam.append(relKin.lam)
-            omega.append(relKin.omega)
-
-        r = np.array(r)
-        sigma = np.array(sigma)
-        lam = np.array(lam)
-        omega = np.array(omega)
-
+        t = self.history('t')
+        r = self.history('r')
+        sigma = self.history('sigma')
+        lam = self.history('lam')
+        omega = self.history('omega')
+        
         fig, ax = plt.subplots(4, 1, figsize=(6, 8))
         ax[0].set_title("Rel. dist")
         ax[0].plot(t[:-1], r[:-1], label="Rel. dist")
