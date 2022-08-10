@@ -14,7 +14,7 @@ class PIController(DynObject):
     def _forward(self, e):
         self.state_vars['e_i'].set_deriv(deriv=e)
 
-        e_i = self.state['e_i']
+        e_i = self.state('e_i')
         u_pi = self.k_p*e + self.k_i*e_i
         return u_pi
 
@@ -46,7 +46,7 @@ class CCCar(MultipleSystem):
     # implement
     def _forward(self, v_r, theta):
         # tracking error
-        v = self.vel_dyn.state['v']
+        v = self.vel_dyn.state('v')
         e = v_r - v
 
         # PI control input

@@ -29,14 +29,14 @@ class Engagement2dim(MultipleSystem):
 
     # implement
     def initialize(self):
-        x_M = self.missile.state['x']
-        x_T = self.target.state['x']
+        x_M = self.missile.state('x')
+        x_T = self.target.state('x')
         self.rel_kin.evaluate(x_M, x_T)
 
     # implement
     def _forward(self):
-        x_M = self.missile.state['x']
-        x_T = self.target.state['x']
+        x_M = self.missile.state('x')
+        x_T = self.target.state('x')
         self.rel_kin.evaluate(x_M, x_T)
         self.close_dist_cond.evaluate(self.rel_kin.r)
 

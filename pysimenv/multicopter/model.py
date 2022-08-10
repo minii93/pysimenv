@@ -63,28 +63,28 @@ class MulticopterDynamic(DynSystem):
     @property
     def pos(self) -> np.ndarray:
         # position in the inertial frame
-        return self.state['p'].copy()
+        return self.state('p').copy()
 
     @property
     def vel(self) -> np.ndarray:
         # velocity in the inertial frame
-        return self.state['v'].copy()
+        return self.state('v').copy()
 
     @property
     def rotation(self) -> np.ndarray:
         # rotation matrix from the vehicle frame to the inertial frame R_iv
-        R_iv = self.state['R'].copy()
+        R_iv = self.state('R').copy()
         return R_iv
 
     @property
     def quaternion(self) -> np.ndarray:
-        R_iv = self.state['R']
+        R_iv = self.state('R')
         q = orientation.rotation_to_quaternion(np.transpose(R_iv))
         return q
 
     @property
     def euler_ang(self) -> np.ndarray:
-        R_iv = self.state['R']
+        R_iv = self.state('R')
         eta = np.array(
             orientation.rotation_to_euler_angles(np.transpose(R_iv))
         )
@@ -93,7 +93,7 @@ class MulticopterDynamic(DynSystem):
     @property
     def ang_vel(self) -> np.ndarray:
         # angular velocity of the vehicle frame with respect to the inertial frame
-        return self.state['omega']
+        return self.state('omega')
 
     def plot_euler_angles(self):
         time_list = self.history('t')
