@@ -3,6 +3,7 @@ import numpy as np
 from typing import Union, List, Tuple, Optional
 from pysimenv.core.base import SimObject, StaticObject, ArrayType
 from pysimenv.core.system import DynObject, MultipleSystem, DynSystem
+from pysimenv.common import orientation
 
 
 class SignalGenerator(StaticObject):
@@ -210,3 +211,49 @@ class PIDControl(DynObject):
 
     def clip_windup(self, e_i: np.ndarray) -> np.ndarray:
         return np.clip(e_i, self.windup_limit, -self.windup_limit)
+
+
+class Dyn6DOF(DynSystem):
+    def __init__(self, p_0: np.ndarray, v_b_0: np.ndarray, q_0: np.ndarray, omega_0: np.ndarray,
+                 m: float, J: np.ndarray):
+        super(Dyn6DOF, self).__init__(initial_states={'p': p_0, 'v_b': v_b_0, 'q': q_0, 'omega': omega_0})
+        self.m = m
+        self.J = J
+
+        def normalize(v: np.ndarray) -> np.ndarray:
+            v_norm = np.linalg.norm(v)
+            if v_norm < 1e-6:
+                return np.zeros_like(v)
+            else:
+                return v/v_norm
+
+        self.state_vars['q'].attach_correction_fun(normalize)
+
+    @property
+    def R(self) -> np.ndarray:
+        # rotation matrix representing the rotation from the body frame to the inertial frame
+        q = self.state('q')
+        eta, epsilon = q[0], q[1:4]
+        S_epsilon = orientation.hat(epsilon)
+        R_ib = np.identity(3) + 2*eta*S_epsilon + 2*np.matmul(S_epsilon, S_epsilon)
+        return R_ib
+
+    @property
+    def v_i(self) -> np.ndarray:
+        v_b = self.state('v_b')
+        return self.R.dot(v_b)
+
+    # implement
+    def _deriv(self, p, v_b, q, omega, f_b: np.ndarray, m_b: np.ndarray):
+        p_dot = self.v_i
+        v_b_dot = -np.cross(omega, v_b) + 1./self.m
+
+        Q = np.array([
+            [-q[1], -q[2], -q[3]],
+            [q[0], -q[3], q[2]],
+            [q[3], q[0], -q[1]],
+            [-q[2], q[1], q[0]]
+        ])
+        q_dot = 0.5*Q.dot(omega)
+        omega_dot = np.linalg.solve(self.J, -np.cross(omega, np.dot(self.J, omega)) + m_b)
+        return {'p': p_dot, 'v_b': v_b_dot, 'q': q_dot, 'omega': omega_dot}
