@@ -118,9 +118,17 @@ class DynObject(SimObject):
         self.load(file)
         file.close()
 
-    @property
-    def state(self) -> Dict[str, np.ndarray]:
-        return self._get_states()
+    def state(self, *args) -> Union[np.ndarray, Dict[str, np.ndarray]]:
+        if len(args) == 1:
+            return self.state_vars[args[0]].state
+        elif len(args) == 0:
+            return self._get_states()
+        else:
+            states = dict()
+            for name in args:
+                var = self.state_vars[name]
+                states[name] = var.state
+            return states
 
     def _get_states(self) -> Dict[str, np.ndarray]:
         states = dict()
@@ -128,15 +136,43 @@ class DynObject(SimObject):
             states[name] = var.state
         return states
 
-    @property
-    def deriv(self) -> Dict[str, np.ndarray]:
-        return self._get_deriv()
+    def deriv(self, *args) -> Union[np.ndarray, Dict[str, np.ndarray]]:
+        if len(args) == 1:
+            return self.state_vars[args[0]].deriv
+        elif len(args) == 0:
+            return self._get_derivs()
+        else:
+            derivs = dict()
+            for name in args:
+                var = self.state_vars[name]
+                derivs[name] = var.deriv
+            return derivs
 
-    def _get_deriv(self) -> Dict[str, np.ndarray]:
+    def _get_derivs(self) -> Dict[str, np.ndarray]:
         derivs = dict()
         for name, var in self.state_vars.items():
             derivs[name] = var.deriv
         return derivs
+
+    # @property
+    # def state(self) -> Dict[str, np.ndarray]:
+    #     return self._get_states()
+    #
+    # def _get_states(self) -> Dict[str, np.ndarray]:
+    #     states = dict()
+    #     for name, var in self.state_vars.items():
+    #         states[name] = var.state
+    #     return states
+    #
+    # @property
+    # def deriv(self) -> Dict[str, np.ndarray]:
+    #     return self._get_deriv()
+    #
+    # def _get_deriv(self) -> Dict[str, np.ndarray]:
+    #     derivs = dict()
+    #     for name, var in self.state_vars.items():
+    #         derivs[name] = var.deriv
+    #     return derivs
 
 
 class DynSystem(DynObject):

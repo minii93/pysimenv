@@ -73,7 +73,7 @@ class IACBPNG(DynObject, Guidance2dim):
 
         B_ref = IACBPNG.reference_value(
             self.theta_M_0, self.theta_M_f, self.theta_T, self.lam_0, self.N, V_M, V_T)
-        B = self.state['B'][0]
+        B = self.state('B')[0]
 
         b_1 = 1./self.tau*(B_ref - B)
         b_2 = (1. - self.N)*omega

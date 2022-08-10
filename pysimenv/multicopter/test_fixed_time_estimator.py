@@ -49,7 +49,7 @@ class ISMC(DynObject):
         self.state_vars['x_b'].set_deriv(deriv=x_b_dot)
 
         # calculate the control input
-        x_b = self.state['x_b']
+        x_b = self.state('x_b')
         s = self.N.dot(x_d - x_b)
         sigma = 2/np.pi*np.arctan(np.linalg.norm(s))*s
         self.u_f = -np.linalg.solve(np.matmul(self.N, B), self.N.dot(delta_hat) + self.eps_1*sigma + self.eps_2*s)

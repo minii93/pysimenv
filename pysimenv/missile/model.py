@@ -51,14 +51,14 @@ class PlanarManVehicle2dof(DynSystem):
         """
         :return: [p_x, p_y]
         """
-        return self.state['x'][0:2]
+        return self.state('x')[0:2]
 
     @property
     def v(self) -> np.ndarray:
         """
         :return: [v_x, v_y]
         """
-        x = self.state['x']
+        x = self.state('x')
         V = x[2]
         gamma = x[3]
 
@@ -69,14 +69,14 @@ class PlanarManVehicle2dof(DynSystem):
         """
         :return: V
         """
-        return self.state['x'][2]
+        return self.state('x')[2]
 
     @property
     def gamma(self) -> float:
         """
         :return: gamma
         """
-        return self.state['x'][3]
+        return self.state('x')[3]
 
     def plot(self):
         var_keys = {'x', 'u'}
@@ -201,7 +201,7 @@ class PlanarMissile2dof(PlanarManVehicle2dof):
 
     def report(self):
         np.set_printoptions(precision=2, suppress=True)
-        x_M_f = self.state['x']
+        x_M_f = self.state('x')
 
         print("[{:s}] Final state: {:.2f}(m), {:.2f}(m), {:.2f}(m/s), {:.2f}(deg)".format(
             self.name, x_M_f[0], x_M_f[1], x_M_f[2], np.rad2deg(x_M_f[3])))

@@ -116,7 +116,7 @@ class LinSys(DynSystem):
 
     # implement
     def _output(self) -> np.ndarray:
-        return self.C.dot(self.state['x'])
+        return self.C.dot(self.state('x'))
 
 
 class FirstOrderLinSys(LinSys):
@@ -129,7 +129,7 @@ class FirstOrderLinSys(LinSys):
 
     # implement
     def _output(self) -> Union[None, tuple, np.ndarray]:
-        return self.state['x'][0]
+        return self.state('x')[0]
 
 
 class SecondOrderLinSys(LinSys):
@@ -146,7 +146,7 @@ class SecondOrderLinSys(LinSys):
 
     # implement
     def _output(self) -> Union[None, tuple, np.ndarray]:
-        return self.state['x'][0]
+        return self.state('x')[0]
 
 
 class Integrator(DynSystem):
@@ -198,7 +198,7 @@ class PIDControl(DynObject):
     def _forward(self, e: np.ndarray) -> np.ndarray:
         self.state_vars['e_i'].set_deriv(deriv=e)
 
-        e_i = self.state['e_i']
+        e_i = self.state('e_i')
         e_d = np.zeros_like(e) if self.e_prev is None else (e - self.e_prev)/(self.time - self.t_prev)
         u_pid = self.k_p*e + self.k_i*e_i + self.k_d*e_d
 

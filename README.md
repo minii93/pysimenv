@@ -228,7 +228,7 @@ We define the feedback structure by implementing `_forward` method.
 
 ```python
     def _forward(self):
-        x = self.linear_sys.state['x']
+        x = self.linear_sys.state('x')
         u_lqr = -self.K.dot(x)
         self.linear_sys.forward(u=u_lqr)
 ```
@@ -279,7 +279,7 @@ class ClosedLoopSys(MultipleSystem):
 
     # implement
     def _forward(self):
-        x = self.linear_sys.state['x']
+        x = self.linear_sys.state('x')
         u_lqr = -self.K.dot(x)
         self.linear_sys.forward(u=u_lqr)
 
@@ -346,7 +346,7 @@ Then, we define the system structure by implementing `_forward` method.
 ```python
     # implement
     def _forward(self):
-        x = self.linear_sys.state['x']
+        x = self.linear_sys.state('x')
         u_lqr = self.lqr_control.forward(x=x)
         self.linear_sys.forward(u=u_lqr)
 ```
@@ -388,7 +388,7 @@ class ClosedLoopSys(MultipleSystem):
 
     # implement
     def _forward(self):
-        x = self.linear_sys.state['x']
+        x = self.linear_sys.state('x')
         u_lqr = self.lqr_control.forward(x=x)
         self.linear_sys.forward(u=u_lqr)
 
@@ -413,7 +413,7 @@ The following figure shows the simulation result.
 
 
 
-#### Example 4: Cruise control of a vehicle using PI control
+### Example 4: Cruise control of a vehicle using PI control
 
 In this example, we will learn the following things.
 
@@ -468,7 +468,7 @@ The `_forward` method of the class is written as
     def _forward(self, e):
         self.state_vars['e_i'].set_deriv(deriv=e)
 
-        e_i = self.state['e_i']
+        e_i = self.state('e_i')
         u_pi = self.k_p*e + self.k_i*e_i
         return u_pi
 ```
@@ -515,7 +515,7 @@ Implement `_forward` method of the closed-loop system.
     # implement
     def _forward(self, v_r, theta):
         # tracking error
-        v = self.vel_dyn.state['v']
+        v = self.vel_dyn.state('v')
         e = v_r - v
 
         # PI control input
@@ -598,7 +598,7 @@ class PIController(DynObject):
     def _forward(self, e):
         self.state_vars['e_i'].set_deriv(deriv=e)
 
-        e_i = self.state['e_i']
+        e_i = self.state('e_i')
         u_pi = self.k_p*e + self.k_i*e_i
         return u_pi
 
@@ -630,7 +630,7 @@ class CCCar(MultipleSystem):
     # implement
     def _forward(self, v_r, theta):
         # tracking error
-        v = self.vel_dyn.state['v']
+        v = self.vel_dyn.state('v')
         e = v_r - v
 
         # PI control input

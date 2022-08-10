@@ -29,7 +29,7 @@ class ClosedLoopSys(MultipleSystem):
 
     # implement
     def _forward(self):
-        x = self.linear_sys.state['x']
+        x = self.linear_sys.state('x')
         u_lqr = -self.K.dot(x)
         self.linear_sys.forward(u=u_lqr)
 

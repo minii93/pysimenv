@@ -55,4 +55,4 @@ class FixedTimeFaultEstimator(DynSystem):
 
     @property
     def delta_hat(self) -> np.ndarray:
-        return self.state['z_2']
+        return self.state('z_2')
