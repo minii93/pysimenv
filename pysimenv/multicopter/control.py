@@ -5,6 +5,7 @@ from typing import Union, Tuple
 from pysimenv.core.base import StaticObject
 from pysimenv.common.model import FlatEarthEnv
 from pysimenv.common.orientation import quaternion_to_axis_angle
+from pysimenv.multicopter.model import MulticopterDynamic
 
 
 class FLVelControl(StaticObject):
@@ -148,3 +149,92 @@ class QuaternionPosControl(StaticObject):
         P = scipy.linalg.solve_continuous_are(A, B, Q, R)
         K = np.linalg.inv(R).dot(B.transpose().dot(P))
         return K
+
+
+class BSControl(StaticObject):
+    """
+    Back-stepping control
+    """
+    def __init__(self, m, J, alpha, interval=-1):
+        super(BSControl, self).__init__(interval=interval)
+        self.m = m
+        self.J = J
+        self.alpha = alpha
+
+        J_x, J_y, J_z = np.diag(J)[:]
+        self.a_1 = (J_y - J_z)/J_x
+        self.a_3 = (J_z - J_x)/J_y
+        self.a_5 = (J_x - J_y)/J_z
+        self.b_1 = 1./J_x
+        self.b_2 = 1./J_y
+        self.b_3 = 1./J_z
+
+    # implement
+    def _forward(self, dyn: MulticopterDynamic, sigma_d: np.ndarray, sigma_d_dot: np.ndarray):
+        """
+        :param dyn:
+        :param sigma_d: [x_d, y_d, z_d, psi_d]
+        :param sigma_d_dot: [x_d_dot, y_d_dot, z_d_dot, psi_d_dot]
+        :return:
+        """
+        alp_1, alp_2, alp_3, alp_4, alp_5, alp_6, alp_7, alp_8, alp_9, alp_10, alp_11, alp_12 = self.alpha[:]
+
+        x_1, x_3, x_5 = dyn.euler_ang[:]  # phi, theta, psi
+        x_2, x_4, x_6 = dyn.ang_vel[:]  # approximation of phi_dot, theta_dot, psi_dot
+        x_9, x_11, x_7 = dyn.pos[:]  # x, y, z
+        x_10, x_12, x_8 = dyn.vel[:]  # x_dot, y_dot, z_dot
+
+        # translation subsystem control
+        x_9_d, x_11_d, x_7_d = sigma_d[0:3]
+        x_9_d_dot, x_11_d_dot, x_7_d_dot = sigma_d_dot[0:3]
+
+        z_7 = x_7_d - x_7
+        z_7_dot = x_7_d_dot - x_8
+        z_8 = z_7_dot + alp_7*z_7
+
+        z_9 = x_9_d - x_9
+        z_9_dot = x_9_d_dot - x_10
+        z_10 = z_9_dot + alp_9*z_9
+
+        z_11 = x_11_d - x_11
+        z_11_dot = x_11_d_dot - x_12
+        z_12 = z_11_dot + alp_11*z_11
+
+        u_1 = -self.m/(np.cos(x_1)*np.cos(x_3))*(
+                -FlatEarthEnv.grav_accel + z_7 + alp_7*(z_8 - alp_7*z_7) + alp_8*z_8)
+        u_x = -self.m/u_1*(
+            z_9 + alp_9*(z_10 - alp_9*z_9) + alp_10*z_10
+        )
+        u_y = -self.m/u_1*(
+            z_11 + alp_11*(z_12 - alp_11*z_11) + alp_12*z_12
+        )
+
+        x_5_d = sigma_d[3]
+        x_1_d = np.arcsin(
+            np.clip(np.sin(x_5_d)*u_x - np.cos(x_5_d)*u_y, -1., 1.))
+        x_3_d = np.arcsin(
+            np.clip((np.cos(x_5_d)*u_x + np.sin(x_5_d)*u_y)/np.cos(x_1_d), -1., 1.))
+
+        # rotation subsystem control
+        z_1 = x_1_d - x_1
+        z_1_dot = -x_2
+        z_2 = z_1_dot + alp_1*z_1
+
+        z_3 = x_3_d - x_3
+        z_3_dot = -x_4
+        z_4 = z_3_dot + alp_3*z_3
+
+        z_5 = x_5_d - x_5
+        z_5_dot = -x_6
+        z_6 = z_5_dot + alp_5*z_5
+
+        u_2 = 1./self.b_1*(
+            -self.a_1*x_4*x_6 + z_1 + alp_1*(z_2 - alp_1*z_1) + alp_2*z_2
+        )
+        u_3 = 1./self.b_2*(
+            -self.a_3*x_2*x_6 + z_3 + alp_3*(z_4 - alp_3*z_3) + alp_4*z_4
+        )
+        u_4 = 1./self.b_3*(
+            -self.a_5*x_2*x_4 + z_5 + alp_5*(z_6 - alp_5*z_5) + alp_6*z_6
+        )
+        return np.array([u_1, u_2, u_3, u_4])
