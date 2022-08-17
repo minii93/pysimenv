@@ -95,6 +95,25 @@ class MulticopterDynamic(DynSystem):
         # angular velocity of the vehicle frame with respect to the inertial frame
         return self.state('omega')
 
+    def plot_path(self, show: bool = False):
+        p = self.history('p')
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        ax.plot(p[:, 0], p[:, 1], -p[:, 2])
+        ax.set_xlabel("x (m)")
+        ax.set_ylabel("y (m)")
+        ax.set_zlabel("h (m)")
+        ax.grid()
+        ax.set_title("Flight path")
+
+        if show:
+            plt.show()
+        else:
+            plt.draw()
+            plt.pause(0.1)
+
+
     def plot_euler_angles(self):
         time_list = self.history('t')
         rotation_list = self.history('R')
