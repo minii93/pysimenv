@@ -115,7 +115,6 @@ class SimObject(object):
     def __init__(self, interval: Union[int, float] = -1):
         self.flag: int = SimObject.FLAG_OPERATING
         self._sim_clock: Optional[SimClock] = None
-        self._log_timer: Optional[Timer] = None
         self._timer = Timer(event_time_interval=interval)
         self._logger = Logger()
         self._last_output = None
@@ -126,7 +125,7 @@ class SimObject(object):
         self._timer.turn_on()
 
     def attach_log_timer(self, log_timer: Timer):
-        self._log_timer = log_timer
+        self._logger.attach_log_timer(log_timer)
 
     def initialize(self):
         self._initialize()
@@ -140,7 +139,7 @@ class SimObject(object):
         self._timer.detach_sim_clock()
 
     def detach_log_timer(self):
-        self._log_timer = None
+        self._logger.detach_log_timer()
     
     def reset(self):
         self.flag = SimObject.FLAG_OPERATING
@@ -149,9 +148,6 @@ class SimObject(object):
 
     def check_sim_clock(self):
         assert self._sim_clock is not None, "Attach a sim_clock first!"
-
-    def check_log_timer(self):
-        assert self._log_timer is not None, "Attach a log_timer first!"
 
     @property
     def time(self) -> float:

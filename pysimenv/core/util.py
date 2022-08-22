@@ -106,14 +106,21 @@ class Timer(object):
 
 class Logger:
     def __init__(self):
+        self._log_timer: Optional[Timer] = None
         self.data = dict()
         self.is_operating = True
+
+    def attach_log_timer(self, log_timer: Timer):
+        self._log_timer = log_timer
 
     def turn_on(self):
         self.is_operating = True
 
     def turn_off(self):
         self.is_operating = False
+
+    def detach_log_timer(self):
+        self._log_timer = None
 
     def clear(self):
         self.data = dict()
@@ -129,16 +136,17 @@ class Logger:
 
     def append(self, **kwargs):
         if self.is_operating:
-            for key in kwargs.keys():
-                arr = kwargs[key]
-                if isinstance(arr, np.ndarray):
-                    arr = arr.copy()
+            if (self._log_timer is None) or self._log_timer.is_event:
+                for key in kwargs.keys():
+                    arr = kwargs[key]
+                    if isinstance(arr, np.ndarray):
+                        arr = arr.copy()
 
-                try:
-                    self.data[key].append(arr)
-                except KeyError:
-                    self.data[key] = []
-                    self.data[key].append(arr)
+                    try:
+                        self.data[key].append(arr)
+                    except KeyError:
+                        self.data[key] = []
+                        self.data[key].append(arr)
 
     def get(self, *args) -> Union[None, np.ndarray, dict]:
         if self.is_empty():

@@ -68,7 +68,6 @@ class Simulator(object):
 
         self.sim_clock.set_time_interval(dt)
         self.model.check_sim_clock()
-        self.model.check_log_timer()
         self.model.initialize()
 
         if self.verbose:
