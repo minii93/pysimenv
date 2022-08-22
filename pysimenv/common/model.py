@@ -262,8 +262,7 @@ class Dyn6DOF(DynSystem):
     # override
     def _forward(self, **kwargs):
         output = super(Dyn6DOF, self)._forward(**kwargs)
-        if self._log_timer.is_event:
-            self._logger.append(R=self.R, v_i=self.v_i)
+        self._logger.append(R=self.R, v_i=self.v_i)
         return output
 
 
@@ -312,8 +311,7 @@ class Dyn6DOFEuler(DynSystem):
     # override
     def _forward(self, **kwargs):
         output = super(Dyn6DOFEuler, self)._forward(**kwargs)
-        if self._log_timer.is_event:
-            self._logger.append(R=self.R, v_i=self.v_i)
+        self._logger.append(R=self.R, v_i=self.v_i)
         return output
 
 
@@ -344,7 +342,6 @@ class Dyn6DOFRotMat(DynSystem):
     # override
     def _forward(self, **kwargs):
         output = super(Dyn6DOFRotMat, self)._forward(**kwargs)
-        if self._log_timer.is_event:
-            self._logger.append(v_i=self.v_i)
+        self._logger.append(v_i=self.v_i)
         return output
 

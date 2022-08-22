@@ -226,8 +226,7 @@ class DynSystem(DynObject):
         for name, var in self.state_vars.items():
             var.set_deriv(derivs[name])
 
-        if self._log_timer.is_event:
-            self._logger.append(t=self.time, **states, **kwargs)
+        self._logger.append(t=self.time, **states, **kwargs)
         return self._output()
 
     # override
@@ -280,8 +279,7 @@ class TimeVaryingDynSystem(DynObject):
         for name, var in self.state_vars.items():
             var.set_deriv(derivs[name])
 
-        if self._log_timer.is_event:
-            self._logger.append(t=self.time, **states, **kwargs)
+        self._logger.append(t=self.time, **states, **kwargs)
         return self._output()
 
     # override
