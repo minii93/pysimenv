@@ -3,7 +3,7 @@ import numpy as np
 from typing import Union, List, Tuple, Optional
 from pysimenv.core.base import SimObject, StaticObject, ArrayType
 from pysimenv.core.system import DynObject, MultipleSystem, DynSystem
-from pysimenv.common import orientation
+from pysimenv.common import orientation, util
 
 
 class SignalGenerator(StaticObject):
@@ -231,22 +231,23 @@ class Dyn6DOF(DynSystem):
 
     @property
     def R(self) -> np.ndarray:
-        # rotation matrix representing the rotation from the body frame to the inertial frame
+        # rotation matrix representing the rotation from the inertial frame to the body frame
         q = self.state('q')
         eta, epsilon = q[0], q[1:4]
         S_epsilon = orientation.hat(epsilon)
-        R_ib = np.identity(3) + 2*eta*S_epsilon + 2*np.matmul(S_epsilon, S_epsilon)
-        return R_ib
+        R_bi = np.identity(3) - 2*eta*S_epsilon + 2*np.matmul(S_epsilon, S_epsilon)
+        return R_bi
 
     @property
     def v_i(self) -> np.ndarray:
         v_b = self.state('v_b')
-        return self.R.dot(v_b)
+        R_ib = self.R.transpose()
+        return R_ib.dot(v_b)
 
     # implement
     def _deriv(self, p, v_b, q, omega, f_b: np.ndarray, m_b: np.ndarray):
         p_dot = self.v_i
-        v_b_dot = -np.cross(omega, v_b) + 1./self.m
+        v_b_dot = -np.cross(omega, v_b) + 1./self.m*f_b
 
         Q = np.array([
             [-q[1], -q[2], -q[3]],
@@ -255,5 +256,95 @@ class Dyn6DOF(DynSystem):
             [-q[2], q[1], q[0]]
         ])
         q_dot = 0.5*Q.dot(omega)
-        omega_dot = np.linalg.solve(self.J, -np.cross(omega, np.dot(self.J, omega)) + m_b)
+        omega_dot = np.linalg.solve(self.J, -np.cross(omega, self.J.dot(omega)) + m_b)
         return {'p': p_dot, 'v_b': v_b_dot, 'q': q_dot, 'omega': omega_dot}
+
+    # override
+    def _forward(self, **kwargs):
+        output = super(Dyn6DOF, self)._forward(**kwargs)
+        if self._log_timer.is_event:
+            self._logger.append(R=self.R, v_i=self.v_i)
+        return output
+
+
+class Dyn6DOFEuler(DynSystem):
+    def __init__(self, p_0: np.ndarray, v_b_0: np.ndarray, eta_0: np.ndarray, omega_0: np.ndarray,
+                 m: float, J: np.ndarray):
+        super(Dyn6DOFEuler, self).__init__(initial_states={'p': p_0, 'v_b': v_b_0, 'eta': eta_0, 'omega': omega_0})
+        self.m = m
+        self.J = J
+        self.name = "dyn_6dof_euler"
+
+        self.state_vars['eta'].attach_correction_fun(util.wrap_to_pi)
+
+    @property
+    def R(self) -> np.ndarray:
+        eta = self.state('eta')
+        R_bi = orientation.euler_angles_to_rotation(eta)
+        return R_bi
+
+    @property
+    def v_i(self) -> np.ndarray:
+        v_b = self.state('v_b')
+        R_ib = self.R.transpose()
+        return R_ib.dot(v_b)
+
+    # implement
+    def _deriv(self, p, v_b, eta, omega, f_b: np.ndarray, m_b: np.ndarray):
+        p_dot = self.v_i
+        v_b_dot = -np.cross(omega, v_b) + 1./self.m*f_b
+
+        phi, theta = eta[0:2]
+        c_phi = np.cos(phi)
+        s_phi = np.sin(phi)
+        c_theta = np.cos(theta)
+        t_theta = np.tan(theta)
+        assert np.abs(theta) < np.pi/2. - 1e-6, "[{:s}] The attitude is near the singularity.".format(self.name)
+        H_inv = np.array([
+            [1., s_phi*t_theta, c_phi*t_theta],
+            [0., c_phi, -s_phi],
+            [0., s_phi/c_theta, c_phi/c_theta]
+        ])
+        eta_dot = H_inv.dot(omega)
+        omega_dot = np.linalg.solve(self.J, -np.cross(omega, self.J.dot(omega)) + m_b)
+        return {'p': p_dot, 'v_b': v_b_dot, 'eta': eta_dot, 'omega': omega_dot}
+
+    # override
+    def _forward(self, **kwargs):
+        output = super(Dyn6DOFEuler, self)._forward(**kwargs)
+        if self._log_timer.is_event:
+            self._logger.append(R=self.R, v_i=self.v_i)
+        return output
+
+
+class Dyn6DOFRotMat(DynSystem):
+    def __init__(self, p_0: np.ndarray, v_b_0: np.ndarray, R_0: np.ndarray, omega_0: np.ndarray,
+                 m: float, J: np.ndarray):
+        super(Dyn6DOFRotMat, self).__init__(initial_states={'p': p_0, 'v_b': v_b_0, 'R': R_0, 'omega': omega_0})
+        self.m = m
+        self.J = J
+        self.name = "dyn_6dof_rotation"
+
+        self.state_vars['R'].attach_correction_fun(orientation.correct_orthogonality)
+
+    @property
+    def v_i(self) -> np.ndarray:
+        v_b = self.state('v_b')
+        R_ib = self.state('R').transpose()
+        return R_ib.dot(v_b)
+
+    # implement
+    def _deriv(self, p, v_b, R, omega, f_b: np.ndarray, m_b: np.ndarray):
+        p_dot = self.v_i
+        v_b_dot = -np.cross(omega, v_b) + 1./self.m*f_b
+        R_dot = -np.matmul(orientation.hat(omega), R)
+        omega_dot = np.linalg.solve(self.J, -np.cross(omega, self.J.dot(omega)) + m_b)
+        return {'p': p_dot, 'v_b': v_b_dot, 'R': R_dot, 'omega': omega_dot}
+
+    # override
+    def _forward(self, **kwargs):
+        output = super(Dyn6DOFRotMat, self)._forward(**kwargs)
+        if self._log_timer.is_event:
+            self._logger.append(v_i=self.v_i)
+        return output
+

@@ -8,14 +8,16 @@ ArrayType = Union[list, tuple, np.ndarray]
 
 def wrap_to_pi(angle: Union[float, np.ndarray]):
     if isinstance(angle, np.ndarray):
-        angle[angle > np.pi] = angle[angle > np.pi] - 2*np.pi
-        angle[angle < -np.pi] = angle[angle < -np.pi] + 2*np.pi
+        angle_w = angle.copy()
+        angle_w[angle > np.pi] = angle[angle > np.pi] - 2*np.pi
+        angle_w[angle < -np.pi] = angle[angle < -np.pi] + 2*np.pi
     else:
-        if angle > np.pi:
-            angle -= 2*np.pi
-        elif angle < -np.pi:
-            angle += 2*np.pi
-    return angle
+        angle_w = angle
+        if angle_w > np.pi:
+            angle_w -= 2*np.pi
+        elif angle_w < -np.pi:
+            angle_w += 2*np.pi
+    return angle_w
 
 
 def distance_traj_segment(p0: ArrayType, p1: ArrayType, q0: ArrayType, q1: ArrayType) -> Tuple[float, float]:
