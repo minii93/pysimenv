@@ -16,7 +16,7 @@ def main():
     def force_moment(t):
         if t < 2.:
             f_b = np.array([0., 0., 1.])
-            m_b = np.array([0.15, 0., 0.])
+            m_b = np.array([0.015, 0., 0.])
         else:
             f_b = np.zeros(3)
             m_b = np.zeros(3)
