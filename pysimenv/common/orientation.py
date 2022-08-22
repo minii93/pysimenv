@@ -1,6 +1,7 @@
 import numpy as np
 import scipy.linalg
 from typing import Tuple
+from pysimenv.core.base import ArrayType
 
 
 def check_orthogonality(M: np.ndarray) -> bool:
@@ -72,20 +73,15 @@ def basic_rotation(axis: str, phi: float) -> np.ndarray:
         ], dtype=np.float32)
 
 
-def euler_angles_to_rotation(*args) -> np.ndarray:
+def euler_angles_to_rotation(eta: ArrayType) -> np.ndarray:
     """
     convention: 3-2-1 Euler angle
     The resulting rotation matrix is from inertial frame
     to body frame, R_{bi}
-    :param args: (eulerAngles) where eulerAngles = [phi, theta, psi] or (phi, theta, psi)
+    :param eta: eulerAngles = [phi, theta, psi]
     :return: rotation matrix, (3, 3) numpy array
     """
-    if len(args) == 1:
-        euler_angles = args[0]
-        phi, theta, psi = euler_angles[:]
-    else:
-        # when len(args) == 3
-        phi, theta, psi = args[:]
+    phi, theta, psi = eta[:]
 
     s_phi = np.sin(phi)
     c_phi = np.cos(phi)
@@ -95,21 +91,21 @@ def euler_angles_to_rotation(*args) -> np.ndarray:
     c_psi = np.cos(psi)
 
     R_psi = np.array([
-        [c_psi, s_psi, 0],
-        [-s_psi, c_psi, 0],
-        [0, 0, 1]
+        [c_psi, s_psi, 0.],
+        [-s_psi, c_psi, 0.],
+        [0., 0., 1.]
     ])
     R_theta = np.array([
-        [c_theta, 0, -s_theta],
-        [0, 1, 0],
-        [s_theta, 0, c_theta]
+        [c_theta, 0., -s_theta],
+        [0., 1., 0.],
+        [s_theta, 0., c_theta]
     ])
     R_phi = np.array([
-        [1, 0, 0],
-        [0, c_phi, s_phi],
-        [0, -s_phi, c_phi]
+        [1., 0., 0.],
+        [0., c_phi, s_phi],
+        [0., -s_phi, c_phi]
     ])
-    return R_phi.dot(R_theta).dot(R_psi)
+    return np.matmul(R_phi, np.matmul(R_theta, R_psi))
 
 
 def rotation_to_euler_angles(R: np.ndarray) -> list:
