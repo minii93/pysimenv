@@ -4,7 +4,7 @@ from pyquaternion import Quaternion
 from typing import Union, Tuple
 from pysimenv.core.base import StaticObject
 from pysimenv.common.model import FlatEarthEnv
-from pysimenv.common.orientation import quaternion_to_axis_angle
+from pysimenv.common.orientation import quaternion_to_axis_angle, hat
 from pysimenv.multicopter.model import MulticopterDynamic
 
 
@@ -256,15 +256,26 @@ class OAFAttControl(StaticObject):
 
     # implement
     def _forward(self, dyn: MulticopterDynamic, zeta_d, zeta_d_dot, zeta_d_2dot, fault_ind: int):
+        # zeta = [phi, theta, z]
         eta = dyn.euler_ang
         phi, theta = eta[0], eta[1]
-
         assert np.abs(theta) < np.pi/2. - 1e-6, "[oaf_att_control] The attitude is near the singularity."
 
         c_phi, s_phi = np.cos(phi), np.sin(phi)
         c_theta, s_theta = np.cos(theta), np.sin(theta)
         t_theta = s_theta/c_theta
 
+        # Altitude control
+        z, v_z = dyn.pos[2], dyn.vel[2]
+        e_1, e_1_dot = zeta_d[2] - z, zeta_d_dot[2] - v_z
+        k_1, k_2 = self.K_1[2], self.K_2[2]
+        z_d_2dot = zeta_d_2dot[2]
+
+        F_l = -self.m/(c_phi*c_theta)*(
+                -FlatEarthEnv.grav_accel + 1./self.m*self.D_v[2, 2]*v_z + (1 + k_1*k_2)*e_1 +
+                (k_1 + k_2)*e_1_dot + z_d_2dot)
+
+        # Attitude control
         H_inv = np.array([
             [1., s_phi*t_theta, c_phi*t_theta],
             [0., c_phi, -s_phi],
@@ -274,50 +285,37 @@ class OAFAttControl(StaticObject):
         eta_dot = H_inv.dot(omega)
         phi_dot, theta_dot = eta_dot[0], eta_dot[1]
 
-        z = dyn.pos[2]
-        v_z = dyn.vel[2]
-
-        zeta = np.array([phi, theta, z])
-        zeta_dot = np.array([phi_dot, theta_dot, v_z])
-        e_1 = zeta_d - zeta
-        e_1_dot = zeta_d_dot - zeta_dot
+        eta_r = np.array([phi, theta])
+        eta_r_dot = np.array([phi_dot, theta_dot])
+        e_3 = zeta_d[0:2] - eta_r
+        e_3_dot = zeta_d_dot[0:2] - eta_r_dot
+        k_3 = self.K_1[0:2]
+        k_4 = self.K_2[0:2]
+        eta_r_d_2dot = zeta_d_2dot[0:2]
 
         M_1 = np.array([
-            [1., s_phi*t_theta, c_phi*t_theta, 0.],
-            [0., c_phi, -s_phi, 0.],
-            [0., 0., 0., 1.]
+            [1., s_phi*t_theta, c_phi*t_theta],
+            [0., c_phi, -s_phi]
         ])
         M_1_dot = np.array([
             [0., c_phi*t_theta*phi_dot + (s_phi/c_theta**2)*theta_dot,
-             -s_phi*t_theta*phi_dot + (c_phi/c_theta**2)*theta_dot, 0.],
-            [0., -s_phi*phi_dot, -c_phi*phi_dot, 0.],
-            [0., 0., 0., 0.]
-        ])
-
-        J_x, J_y, J_z = np.diag(self.J)[:]
-        p, q, r = omega[:]
-        n_1 = np.array([
-            1./J_x*((J_y - J_z) * q * r - self.D_omega[0, 0] * p),
-            1./J_y*((J_z - J_x) * p * r - self.D_omega[1, 1] * q),
-            1./J_z*((J_x - J_y) * p * q - self.D_omega[2, 2] * r),
-            FlatEarthEnv.grav_accel - 1. / self.m * self.D_v[2, 2] * v_z
+             -s_phi*t_theta*phi_dot + (c_phi/c_theta**2)*theta_dot],
+            [0., -s_phi*phi_dot, -c_phi*phi_dot]
         ])
 
         G_r, g_psi = self.reduced_thrust_model(fault_ind=fault_ind)
-        M_2 = np.array([
-            [0., 1./J_x, 0.],
-            [0., 0., 1./J_y],
-            [g_psi[0]/J_z, g_psi[1]/J_z, g_psi[2]/J_z],
-            [-1./self.m*c_phi*c_theta, 0., 0.]
-        ])
+        n_1 = np.linalg.solve(self.J, -np.cross(omega, self.J.dot(omega)) - self.D_omega.dot(omega)
+                              + np.array([0., 0., g_psi[0]])*F_l)
 
-        xi = np.array([p, q, r, v_z])
-        f = M_1_dot.dot(xi) + M_1.dot(n_1)
+        M_2 = np.matmul(np.linalg.inv(self.J), np.array([[1., 0.], [0., 1.], [g_psi[1], g_psi[2]]]))
+
+        f = M_1_dot.dot(omega) + M_1.dot(n_1)
         Q = np.matmul(M_1, M_2)
 
-        u_r = np.linalg.pinv(Q, rcond=1e-8).dot(
-            -f + (np.identity(3) + self.K_1*self.K_2).dot(e_1) + (self.K_1 + self.K_2).dot(e_1_dot) + zeta_d_2dot
+        tau_r = np.linalg.pinv(Q, rcond=1e-8).dot(
+            -f + (1. + k_3*k_4)*e_3 + (k_3 + k_4)*e_3_dot + eta_r_d_2dot
         )
+        u_r = np.array([F_l, tau_r[0], tau_r[1]])
         w_r = np.linalg.solve(G_r, u_r)
         return w_r
 
