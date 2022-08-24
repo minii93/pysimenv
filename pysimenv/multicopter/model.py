@@ -11,7 +11,8 @@ from pysimenv.common import orientation
 class MulticopterDynamic(DynSystem):
     e3 = np.array([0., 0., 1.], dtype=np.float32)
 
-    def __init__(self, initial_states: Union[list, tuple], m: float, J: np.ndarray):
+    def __init__(self, initial_states: Union[list, tuple], m: float, J: np.ndarray,
+                 D_v: np.ndarray = np.zeros(3), D_omega: np.ndarray = np.zeros(3)):
         """
         :param initial_states: [p, v, R, omega] where
             p: position, (3,) numpy array
@@ -28,6 +29,8 @@ class MulticopterDynamic(DynSystem):
         )
         self.m = m
         self.J = J
+        self.D_v = D_v
+        self.D_omega = D_omega
         self.grav_accel = FlatEarthEnv.grav_accel*self.e3
 
         self.state_vars['R'].attach_correction_fun(orientation.correct_orthogonality)
@@ -46,9 +49,9 @@ class MulticopterDynamic(DynSystem):
         tau = u[1:4]  # Moments
 
         p_dot = v
-        v_dot = self.grav_accel - 1./self.m*(f*np.dot(R, self.e3))
+        v_dot = self.grav_accel - 1./self.m*(f*np.dot(R, self.e3)) - 1./self.m*self.D_v.dot(v)
         R_dot = np.matmul(R, self.hat(omega))
-        omega_dot = np.linalg.solve(self.J, -np.cross(omega, np.dot(self.J, omega)) + tau)
+        omega_dot = np.linalg.solve(self.J, -np.cross(omega, np.dot(self.J, omega)) + tau - self.D_omega.dot(omega))
 
         return {'p': p_dot, 'v': v_dot, 'R': R_dot, 'omega': omega_dot}
 
@@ -94,6 +97,25 @@ class MulticopterDynamic(DynSystem):
     def ang_vel(self) -> np.ndarray:
         # angular velocity of the vehicle frame with respect to the inertial frame
         return self.state('omega')
+
+    def plot_path(self, show: bool = False):
+        p = self.history('p')
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        ax.plot(p[:, 0], p[:, 1], -p[:, 2])
+        ax.set_xlabel("x (m)")
+        ax.set_ylabel("y (m)")
+        ax.set_zlabel("h (m)")
+        ax.grid()
+        ax.set_title("Flight path")
+
+        if show:
+            plt.show()
+        else:
+            plt.draw()
+            plt.pause(0.1)
+
 
     def plot_euler_angles(self):
         time_list = self.history('t')
