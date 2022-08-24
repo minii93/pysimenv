@@ -289,10 +289,10 @@ class Dyn6DOF(DynSystem):
         return {'p': p_dot, 'v_b': v_b_dot, 'q': q_dot, 'omega': omega_dot}
 
     # override
-    def _forward(self, **kwargs):
-        output = super(Dyn6DOF, self)._forward(**kwargs)
-        self._logger.append(R=self.R, v_i=self.v_i)
-        return output
+    def _output(self) -> Union[None, np.ndarray, dict]:
+        out = self.state()
+        out.update({'R': self.R, 'v_i': self.v_i})
+        return out
 
 
 class Dyn6DOFEuler(DynSystem):
@@ -338,10 +338,10 @@ class Dyn6DOFEuler(DynSystem):
         return {'p': p_dot, 'v_b': v_b_dot, 'eta': eta_dot, 'omega': omega_dot}
 
     # override
-    def _forward(self, **kwargs):
-        output = super(Dyn6DOFEuler, self)._forward(**kwargs)
-        self._logger.append(R=self.R, v_i=self.v_i)
-        return output
+    def _output(self) -> Union[None, np.ndarray, dict]:
+        out = self.state()
+        out.update({'R': self.R, 'v_i': self.v_i})
+        return out
 
 
 class Dyn6DOFRotMat(DynSystem):
@@ -369,8 +369,7 @@ class Dyn6DOFRotMat(DynSystem):
         return {'p': p_dot, 'v_b': v_b_dot, 'R': R_dot, 'omega': omega_dot}
 
     # override
-    def _forward(self, **kwargs):
-        output = super(Dyn6DOFRotMat, self)._forward(**kwargs)
-        self._logger.append(v_i=self.v_i)
-        return output
-
+    def _output(self) -> Union[None, np.ndarray, dict]:
+        out = self.state()
+        out.update({'v_i': self.v_i})
+        return out
