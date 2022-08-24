@@ -16,6 +16,8 @@ class StateVariable(object):
         self.correction_fun = None
 
     def apply_state(self, state: ArrayType):
+        if isinstance(state, float):
+            state = np.array([state])
         self.state = np.array(state)
 
     @property
