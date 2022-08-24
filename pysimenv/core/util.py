@@ -38,7 +38,8 @@ class Timer(object):
         self._last_event_time = -np.inf
 
     def reset(self):
-        self.turn_off()
+        self.turn_on()
+        self._last_event_time = -np.inf
 
     def attach_sim_clock(self, sim_clock: SimClock):
         # initialization phase
