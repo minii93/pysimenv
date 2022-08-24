@@ -1,10 +1,11 @@
 import numpy as np
 import scipy
+import matplotlib.pyplot as plt
 from pyquaternion import Quaternion
 from typing import Union, Tuple
 from pysimenv.core.base import StaticObject
 from pysimenv.common.model import FlatEarthEnv
-from pysimenv.common.orientation import quaternion_to_axis_angle, hat
+from pysimenv.common.orientation import quaternion_to_axis_angle
 from pysimenv.multicopter.model import MulticopterDynamic
 
 
@@ -240,19 +241,147 @@ class BSControl(StaticObject):
         return np.array([u_1, u_2, u_3, u_4])
 
 
+class OAFControl(StaticObject):
+    """
+    Control in one actuator failure
+    Reference: Y. Wu, K. Hu, X. M. Sun, and Y. Ma, "Nonlinear Control of Quadrotor for Fault Tolerance:
+    A Total Failure of One Actuator", IEEE Transactions on Systems, Man, and Cybernetics: Systems, Vol. 51, No. 5,
+    2021.
+    """
+    def __init__(self, m, J, d_v, d_omega, G, K_p, K_d, interval=-1):
+        super(OAFControl, self).__init__(interval=interval)
+        self.m = m
+        self.J = J
+        self.d_v = d_v
+        self.d_omega = d_omega
+        self.G = G
+        self.K_p = K_p  # P gains for [x, y, z, phi, theta]
+        self.K_d = K_d  # D gains for [x, y, z, phi, theta]
+
+    # implement
+    def _forward(self, dyn: MulticopterDynamic, p_d, p_d_dot, p_d_2dot, fault_ind: int):
+        p = dyn.pos
+        v = dyn.vel
+        eta = dyn.euler_ang
+        omega = dyn.ang_vel
+
+        phi, theta, psi = eta[:]
+        if np.abs(theta) > np.pi/2. - 1e-6:
+            print("")
+        assert np.abs(theta) < np.pi/2. - 1e-6, "[oaf_att_control] The attitude is near the singularity."
+
+        c_phi, s_phi = np.cos(phi), np.sin(phi)
+        c_theta, s_theta = np.cos(theta), np.sin(theta)
+        c_psi, s_psi = np.cos(psi), np.sin(psi)
+        t_theta = s_theta/c_theta
+
+        # Position control (altitude)
+        z, v_z = p[2], v[2]
+        e_1, e_1_dot = p_d[2] - z, p_d_dot[2] - v_z
+        k_p_1, k_d_1 = self.K_p[2], self.K_d[2]
+
+        F_l = -self.m/(c_phi*c_theta)*(
+                -FlatEarthEnv.grav_accel + 1./self.m*self.d_v[2]*v_z + k_p_1*e_1 + k_d_1*e_1_dot + p_d_2dot[2])
+
+        # Position control (horizontal position)
+        x, y = p[0:2]
+        v_x, v_y = v[0:2]
+        k_p_2, k_d_2 = self.K_p[0], self.K_d[0]
+        k_p_3, k_d_3 = self.K_p[1], self.K_d[1]
+
+        e_2, e_2_dot = p_d[0] - x, p_d_dot[0] - v_x
+        e_3, e_3_dot = p_d[1] - y, p_d_dot[1] - v_y
+        u_x = -self.m/F_l*(1./self.m*self.d_v[0]*v_x + k_p_2*e_2 + k_d_2*e_2_dot + p_d_2dot[0])
+        u_y = -self.m/F_l*(1./self.m*self.d_v[1]*v_y + k_p_3*e_3 + k_d_3*e_3_dot + p_d_2dot[1])
+
+        phi_d = np.arcsin(
+            np.clip(s_psi*u_x - c_psi*u_y, -1., 1.)
+        )
+        theta_d = np.arcsin(
+            np.clip((c_psi*u_x + s_psi*u_y)/np.cos(phi_d), -1., 1.)
+        )
+        phi_d = np.clip(phi_d, np.deg2rad(-15.), np.deg2rad(15.))
+        theta_d = np.clip(theta_d, np.deg2rad(-15.), np.deg2rad(15.))
+        self._logger.append(t=self.time, phi_d=phi_d, theta_d=theta_d)
+
+        # Attitude control (phi, theta)
+        H_inv = np.array([
+            [1., s_phi*t_theta, c_phi*t_theta],
+            [0., c_phi, -s_phi],
+            [0., s_phi/c_theta, c_phi/c_theta]
+        ])
+        eta_dot = H_inv.dot(omega)
+        phi_dot, theta_dot = eta_dot[0], eta_dot[1]
+
+        eta_r = eta[0:2]
+        eta_r_dot = eta_dot[0:2]
+        e_4 = np.array([phi_d, theta_d]) - eta_r
+        e_4_dot = -eta_r_dot  # phi_d_dot, theta_d_dot are approximated to be 0.
+        k_p_4 = self.K_p[3:5]
+        k_d_4 = self.K_d[3:5]
+
+        M_1 = np.array([
+            [1., s_phi*t_theta, c_phi*t_theta],
+            [0., c_phi, -s_phi]
+        ])
+        M_1_dot = np.array([
+            [0., c_phi*t_theta*phi_dot + (s_phi/c_theta**2)*theta_dot,
+             -s_phi*t_theta*phi_dot + (c_phi/c_theta**2)*theta_dot],
+            [0., -s_phi*phi_dot, -c_phi*phi_dot]
+        ])
+
+        G_r, g_psi = self.reduced_thrust_model(fault_ind=fault_ind)
+        n_1 = np.linalg.solve(self.J, -np.cross(omega, self.J.dot(omega)) - self.d_omega*omega
+                              + np.array([0., 0., g_psi[0]])*F_l)
+
+        M_2 = np.matmul(np.linalg.inv(self.J), np.array([[1., 0.], [0., 1.], [g_psi[1], g_psi[2]]]))
+
+        f = M_1_dot.dot(omega) + M_1.dot(n_1)
+        Q = np.matmul(M_1, M_2)
+
+        tau_r = np.linalg.pinv(Q, rcond=1e-8).dot(-f + k_p_4*e_4 + k_d_4*e_4_dot)
+        u_r = np.array([F_l, tau_r[0], tau_r[1]])
+        w_r = np.linalg.solve(G_r, u_r)
+        return w_r
+
+    def reduced_thrust_model(self, fault_ind: int):
+        ind_i = [0, 1, 2]  # F_l, tau_phi, tau_theta
+        ind_j = []
+        for j in range(4):
+            if not j == fault_ind:
+                ind_j.append(j)
+        G_r = self.G.take(ind_i, axis=0).take(ind_j, axis=1)
+        g_psi = np.dot(self.G[3].take(ind_j), np.linalg.inv(G_r))
+        return G_r, g_psi
+
+    def plot_desired_att(self):
+        t = self.history('t')
+        phi_d = self.history('phi_d')
+        theta_d = self.history('theta_d')
+
+        fig, ax = plt.subplots()
+        ax.plot(t, np.rad2deg(phi_d), label="phi_d")
+        ax.plot(t, np.rad2deg(theta_d), label="theta_d")
+        ax.set_xlabel("Time (s)")
+        ax.set_ylabel("Desired angle (deg)")
+        ax.set_title("Desired attitude")
+        ax.grid()
+        ax.legend()
+
+
 class OAFAttControl(StaticObject):
     """
     Attitude control in one actuator failure
     """
-    def __init__(self, m, J, D_v, D_omega, G, K_1, K_2, interval=-1):
+    def __init__(self, m, J, d_v, d_omega, G, K_p, K_d, interval=-1):
         super(OAFAttControl, self).__init__(interval=interval)
         self.m = m
         self.J = J
-        self.D_v = D_v
-        self.D_omega = D_omega
+        self.d_v = d_v
+        self.d_omega = d_omega
         self.G = G
-        self.K_1 = K_1
-        self.K_2 = K_2
+        self.K_p = K_p
+        self.K_d = K_d
 
     # implement
     def _forward(self, dyn: MulticopterDynamic, zeta_d, zeta_d_dot, zeta_d_2dot, fault_ind: int):
@@ -268,12 +397,11 @@ class OAFAttControl(StaticObject):
         # Altitude control
         z, v_z = dyn.pos[2], dyn.vel[2]
         e_1, e_1_dot = zeta_d[2] - z, zeta_d_dot[2] - v_z
-        k_1, k_2 = self.K_1[2], self.K_2[2]
+        k_p_1, k_d_1 = self.K_p[2], self.K_d[2]
         z_d_2dot = zeta_d_2dot[2]
 
         F_l = -self.m/(c_phi*c_theta)*(
-                -FlatEarthEnv.grav_accel + 1./self.m*self.D_v[2, 2]*v_z + (1 + k_1*k_2)*e_1 +
-                (k_1 + k_2)*e_1_dot + z_d_2dot)
+                -FlatEarthEnv.grav_accel + 1./self.m*self.d_v[2]*v_z + k_p_1*e_1 + k_d_1*e_1_dot + z_d_2dot)
 
         # Attitude control
         H_inv = np.array([
@@ -289,8 +417,8 @@ class OAFAttControl(StaticObject):
         eta_r_dot = np.array([phi_dot, theta_dot])
         e_3 = zeta_d[0:2] - eta_r
         e_3_dot = zeta_d_dot[0:2] - eta_r_dot
-        k_3 = self.K_1[0:2]
-        k_4 = self.K_2[0:2]
+        k_p_2 = self.K_p[0:2]
+        k_d_2 = self.K_d[0:2]
         eta_r_d_2dot = zeta_d_2dot[0:2]
 
         M_1 = np.array([
@@ -304,7 +432,7 @@ class OAFAttControl(StaticObject):
         ])
 
         G_r, g_psi = self.reduced_thrust_model(fault_ind=fault_ind)
-        n_1 = np.linalg.solve(self.J, -np.cross(omega, self.J.dot(omega)) - self.D_omega.dot(omega)
+        n_1 = np.linalg.solve(self.J, -np.cross(omega, self.J.dot(omega)) - self.d_omega*omega
                               + np.array([0., 0., g_psi[0]])*F_l)
 
         M_2 = np.matmul(np.linalg.inv(self.J), np.array([[1., 0.], [0., 1.], [g_psi[1], g_psi[2]]]))
@@ -313,7 +441,7 @@ class OAFAttControl(StaticObject):
         Q = np.matmul(M_1, M_2)
 
         tau_r = np.linalg.pinv(Q, rcond=1e-8).dot(
-            -f + (1. + k_3*k_4)*e_3 + (k_3 + k_4)*e_3_dot + eta_r_d_2dot
+            -f + k_p_2*e_3 + k_d_2*e_3_dot + eta_r_d_2dot
         )
         u_r = np.array([F_l, tau_r[0], tau_r[1]])
         w_r = np.linalg.solve(G_r, u_r)

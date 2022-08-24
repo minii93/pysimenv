@@ -45,21 +45,6 @@ $$
 
 
 
-#### Altitude control
-
-According to the dynamic equations,
-$$
-\ddot{z} = g - \frac{1}{m}c_{\phi}c_{\theta}F_{l} - \frac{1}{m}d_{z}v_{z}
-$$
-Define $e_{1}=z - z_{d}$, $e_{2}=\dot{e}_{1}+ k_{1}e_{1}$. Using back-stepping control, the control law for the altitude control is designed as
-$$
-\begin{align}
-F_{l} &= -\frac{m}{c_{\phi}c_{\theta}}\left( -g + \frac{1}{m}d_{z}v_{z} + (1 - k_{1}^{2})e_{1} + (k_{1} + k_{2})e_{2} + \ddot{z}_{d} \right) \\
-&= -\frac{m}{c_{\phi}c_{\theta}}\left( -g + \frac{1}{m}d_{z}v_{z} + (1 + k_{1}k_{2})e_{1} + (k_{1} + k_{2})\dot{e}_{1} + \ddot{z}_{d} \right)
-\end{align}
-$$
-
-
 #### Reduced model for attitude control
 
 The control inputs $u=[F_{l}, \tau_{\phi} \, \tau_{\theta} \, \tau_{\psi}]^{T}$ can be calculated using thrust of each motor $w=[F_{1} \, F_{2} \, F_{3} \, F_{4}]^{T}$ as
@@ -84,6 +69,48 @@ g_{\psi, 1} & g_{\psi, 2} & g_{\psi, 3}
 $$
 where $\tau_{r}=[\tau_{\phi} \, \tau_{\theta}]^{T}$.
 
+
+
+#### Position control
+
+According to the dynamic equations,
+$$
+\ddot{z} = g - \frac{1}{m}c_{\phi}c_{\theta}F_{l} - \frac{1}{m}d_{z}v_{z}
+$$
+Define $e_{1}=z - z_{d}$, $e_{2}=\dot{e}_{1}+ k_{1}e_{1}$. Using back-stepping control, the control law for the altitude control is designed as
+$$
+\begin{align}
+F_{l} &= -\frac{m}{c_{\phi}c_{\theta}}\left( -g + \frac{1}{m}d_{z}v_{z} + (1 - k_{1}^{2})e_{1} + (k_{1} + k_{2})e_{2} + \ddot{z}_{d} \right) \\
+&= -\frac{m}{c_{\phi}c_{\theta}}\left( -g + \frac{1}{m}d_{z}v_{z} + (1 + k_{1}k_{2})e_{1} + (k_{1} + k_{2})\dot{e}_{1} + \ddot{z}_{d} \right)
+\end{align}
+$$
+$k_{p, 1}:=1 + k_{1}k_{2}$ corresponds to P gain, and $k_{d, 1}:= k_{1} + k_{2}$ corresponds to D gain.
+
+Let $\xi=[x \, y]^{T}$. Then,
+$$
+\begin{align}
+\ddot{\xi} &= \begin{bmatrix} \dot{v}_{x} \\ \dot{v}_{y} \end{bmatrix} 
+= \begin{bmatrix} -\frac{1}{m}F_{l}(c_{\phi}s_{\theta}c_{\psi} + s_{\phi}s_{\psi}) - \frac{1}{m}d_{x}v_{x} \\
+-\frac{1}{m}F_{l}(c_{\phi}s_{\theta}s_{\psi} - s_{\phi}c_{\psi}) - \frac{1}{m}d_{y}v_{y}
+\end{bmatrix} =: \begin{bmatrix}
+-\frac{1}{m}F_{l}u_{x} - \frac{1}{m}d_{x}v_{x} \\
+-\frac{1}{m}F_{l}u_{y} - \frac{1}{m}d_{y}v_{y}
+\end{bmatrix}
+\end{align}
+$$
+Virtual control inputs $u_{x}, u_{y}$ are designed as
+$$
+\begin{align}
+u_{x} &= -\frac{m}{F_{l}} \left( \frac{1}{m}d_{x}v_{x} + (1 + k_{3}k_{4})e_{3} + (k_{1} + k_{4})\dot{e}_{3} + \ddot{x}_{d} \right) \\
+u_{y} &= -\frac{m}{F_{l}} \left( \frac{1}{m}d_{y}v_{y} + (1 + k_{5}k_{6})e_{5} + (k_{5} + k_{6})\dot{e}_{5} + \ddot{y}_{d} \right)
+\end{align}
+$$
+where $e_{3}=x_{d} - x$, $e_{5} = y_{d} - y$.
+
+The desired attitude can be obtained as
+$$
+\phi_{d} = \arcsin(s_{\psi}u_{x} - c_{\psi}u_{y}),\quad \theta_{d} = \arcsin \left( \frac{c_{\psi}u_{x} + s_{\psi}u_{y} }{c_{\phi}} \right)
+$$
 
 
 #### Attitude control
@@ -140,14 +167,12 @@ When $Q$ is nonsingular, $QQ^{\dagger} = I$, and $\ddot{\zeta} = v$.
 
 Using back-stepping control, the control law for the attitude control can be designed as
 $$
-\tau_{r} = Q^{\dagger}(-f + (I - K_{3}^{2})e_{3} + (K_{3} + K_{4})e_{4} + \ddot{\zeta}_{d})
+\tau_{r} = Q^{\dagger}(-f + (I - K_{7}^{2})e_{7} + (K_{7} + K_{8})e_{8} + \ddot{\zeta}_{d})
 $$
-where $e_{3}=\zeta_{d} - \zeta$, $e_{4}=\dot{e}_{3} + K_{3}e_{3}$.
+where $e_{7}=\zeta_{d} - \zeta$, $e_{8}=\dot{e}_{7} + K_{7}e_{7}$.
 $$
-\therefore \tau_{r} = Q^{\dagger}(-f + (I + K_{3}K_{4})e_{3} + (K_{3} + K_{4})\dot{e}_{3} + \ddot{\zeta}_{d})
+\therefore \tau_{r} = Q^{\dagger}(-f + (I + K_{7}K_{8})e_{7} + (K_{7} + K_{8})\dot{e}_{8} + \ddot{\zeta}_{d})
 $$
-
-
 
 
 
