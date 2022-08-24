@@ -11,7 +11,7 @@ from pysimenv.core.system import DynObject
 
 
 class Simulator(object):
-    def __init__(self, model: DynObject, verbose: bool = True):
+    def __init__(self, model: DynObject, verbose: bool = True, reset_model: bool = True):
         self.sim_clock = SimClock()
         self.log_timer = Timer(np.inf)
         self.log_timer.attach_sim_clock(self.sim_clock)
@@ -19,6 +19,8 @@ class Simulator(object):
         self.model = model
         self.model.attach_sim_clock(self.sim_clock)
         self.model.attach_log_timer(self.log_timer)
+        if reset_model:
+            self.model.reset()
 
         self.verbose = verbose
 

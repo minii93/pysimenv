@@ -2,7 +2,7 @@ import numpy as np
 from pysimenv.core.base import StaticObject
 from pysimenv.core.simulator import Simulator
 from pysimenv.core.system import DynSystem
-from pysimenv.common.model import FeedbackControl
+from pysimenv.common.model import OFBControl
 
 
 def main():
@@ -54,7 +54,7 @@ def main():
         output_fun=lambda x: C.dot(x)
     )
     control = StaticObject(interval=-1, eval_fun=lambda y: -K.dot(y))
-    model = FeedbackControl(linear_system, control)  # closed-loop system
+    model = OFBControl(linear_system, control)  # closed-loop system
 
     simulator = Simulator(model)
     simulator.propagate(dt=0.01, time=10.)

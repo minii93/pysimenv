@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from pysimenv.common.model import Dyn6DOF, Dyn6DOFEuler, Dyn6DOFRotMat, SignalGenerator, Sequential
+from pysimenv.common.model import Dyn6DOF, Dyn6DOFEuler, Dyn6DOFRotMat, SignalGenerator, Sequential, Scope
 from pysimenv.core.simulator import Simulator
 
 
@@ -33,17 +33,18 @@ def main():
             m_b = np.zeros(3)
         return {'f_b': f_b, 'm_b': m_b}
     source = SignalGenerator(shaping_fun=force_moment)
+    scope = Scope()
     models = {
-        'quaternion': Sequential(obj_list=[source, dyn6dof]),
-        'euler': Sequential(obj_list=[source, dyn6dof_euler]),
-        'rot_mat': Sequential(obj_list=[source, dyn6dof_rot_mat])
+        'quaternion': Sequential(obj_list=[source, dyn6dof, scope]),
+        'euler': Sequential(obj_list=[source, dyn6dof_euler, scope]),
+        'rot_mat': Sequential(obj_list=[source, dyn6dof_rot_mat, scope])
     }
     line_styles = {'quaternion': '-', 'euler': '-.', 'rot_mat': ':'}
     rotations = dict()
     for key, model in models.items():
         simulator = Simulator(model)
         simulator.propagate(dt=0.01, time=20., save_history=True)
-        rotations[key] = {'t': model.obj_list[1].history('t'), 'R': model.obj_list[1].history('R')}
+        rotations[key] = {'t': model.obj_list[2].history('t'), 'R': model.obj_list[2].history('R')}
 
     fig, ax = plt.subplots(3, 3)
     for i in range(3):

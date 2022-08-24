@@ -16,6 +16,8 @@ class StateVariable(object):
         self.correction_fun = None
 
     def apply_state(self, state: ArrayType):
+        if isinstance(state, float):
+            state = np.array([state])
         self.state = np.array(state)
 
     @property
@@ -169,7 +171,7 @@ class SimObject(object):
         return NotImplementedError
 
     @property
-    def output(self) -> Union[None, tuple, np.ndarray]:
+    def output(self) -> Union[None, np.ndarray, dict]:
         return self._last_output
 
     def history(self, *args):
@@ -192,7 +194,7 @@ class StaticObject(SimObject):
         self.eval_fun = eval_fun
 
     # override
-    def forward(self, *args, **kwargs):
+    def forward(self, *args, **kwargs) -> Union[None, np.ndarray, dict]:
         self._timer.forward()
         if self._timer.is_event:
             self._last_output = self._forward(*args, **kwargs)
@@ -200,7 +202,7 @@ class StaticObject(SimObject):
         return self._last_output
 
     # may be implemented
-    def _forward(self, *args, **kwargs):
+    def _forward(self, *args, **kwargs) -> Union[None, np.ndarray, dict]:
         if self.eval_fun is None:
             raise NotImplementedError
         else:
