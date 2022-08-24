@@ -154,26 +154,6 @@ class DynObject(SimObject):
             derivs[name] = var.deriv
         return derivs
 
-    # @property
-    # def state(self) -> Dict[str, np.ndarray]:
-    #     return self._get_states()
-    #
-    # def _get_states(self) -> Dict[str, np.ndarray]:
-    #     states = dict()
-    #     for name, var in self.state_vars.items():
-    #         states[name] = var.state
-    #     return states
-    #
-    # @property
-    # def deriv(self) -> Dict[str, np.ndarray]:
-    #     return self._get_deriv()
-    #
-    # def _get_deriv(self) -> Dict[str, np.ndarray]:
-    #     derivs = dict()
-    #     for name, var in self.state_vars.items():
-    #         derivs[name] = var.deriv
-    #     return derivs
-
 
 class DynSystem(DynObject):
     def __init__(self, initial_states: Dict[str, ArrayType], deriv_fun=None, output_fun=None,
@@ -209,7 +189,7 @@ class DynSystem(DynObject):
         return self.deriv_fun(**kwargs)
 
     # override
-    def forward(self, **kwargs):
+    def forward(self, **kwargs) -> Union[None, np.ndarray, dict]:
         self._timer.forward()
         output = self._forward(**kwargs)
 
@@ -219,7 +199,7 @@ class DynSystem(DynObject):
         return self._last_output
 
     # implement
-    def _forward(self, **kwargs):
+    def _forward(self, **kwargs) -> Union[None, np.ndarray, dict]:
         states = self._get_states()
         derivs = self._deriv(**states, **kwargs)
 
@@ -231,11 +211,11 @@ class DynSystem(DynObject):
 
     # override
     @property
-    def output(self) -> Optional[np.ndarray]:
+    def output(self) -> Union[None, np.ndarray, dict]:
         return self._output()
 
     # may be overridden
-    def _output(self) -> Optional[np.ndarray]:
+    def _output(self) -> Union[None, np.ndarray, dict]:
         if self.output_fun is None:
             return None
         else:
@@ -272,7 +252,7 @@ class TimeVaryingDynSystem(DynObject):
         return self.deriv_fun(t, **kwargs)
 
     # implement
-    def _forward(self, **kwargs):
+    def _forward(self, **kwargs) -> Union[None, np.ndarray, dict]:
         states = self._get_states()
         derivs = self._deriv(t=self.time, **states, **kwargs)
 
@@ -284,11 +264,11 @@ class TimeVaryingDynSystem(DynObject):
 
     # override
     @property
-    def output(self) -> Optional[np.ndarray]:
+    def output(self) -> Union[None, np.ndarray, dict]:
         return self._output()
 
     # may be overridden
-    def _output(self) -> Optional[np.ndarray]:
+    def _output(self) -> Union[None, np.ndarray, dict]:
         if self.output_fun is None:
             return None
         else:
@@ -350,12 +330,6 @@ class MultipleSystem(DynObject, ABC):
         super(MultipleSystem, self).check_sim_clock()
         for sim_obj in self.sim_obj_list:
             sim_obj.check_sim_clock()
-
-    # override
-    def check_log_timer(self):
-        super(MultipleSystem, self).check_log_timer()
-        for sim_obj in self.sim_obj_list:
-            sim_obj.check_log_timer()
 
     # implement
     def check_stop_condition(self) -> Tuple[bool, list]:

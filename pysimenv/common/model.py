@@ -12,7 +12,7 @@ class SignalGenerator(StaticObject):
         self.shaping_fun = shaping_fun
 
     # implementation
-    def _forward(self) -> np.ndarray:
+    def _forward(self) -> Union[np.ndarray, dict]:
         return self.shaping_fun(self.time)
 
 
@@ -57,13 +57,44 @@ class FeedbackControl(MultipleSystem):
         self.attach_sim_objects([system, control])
 
     # implement
-    def _forward(self, r: Optional[np.ndarray] = None):
-        y = self.system.output
-        if r is None:
-            u_fb = self.control.forward(y)
+    def _forward(self, **kwargs) -> Union[None, np.ndarray, dict]:
+        x = self.system.state()
+        if isinstance(x, np.ndarray):
+            u_fb = self.control.forward(x=x)
         else:
-            u_fb = self.control.forward(y, r)
-        self.system.forward(u=u_fb)
+            u_fb = self.control.forward(**x, **kwargs)
+
+        if isinstance(u_fb, np.ndarray):
+            out = self.system.forward(u=u_fb)
+        else:
+            out = self.system.forward(**u_fb)
+        return out
+
+
+class OFBControl(MultipleSystem):
+    """
+    Output feedback control
+    """
+    def __init__(self, system: DynObject, control: StaticObject):
+        super(OFBControl, self).__init__()
+        self.system = system
+        self.control = control
+
+        self.attach_sim_objects([system, control])
+
+    # implement
+    def _forward(self, **kwargs) -> Union[None, np.ndarray, dict]:
+        y = self.system.output
+        if isinstance(y, np.ndarray):
+            u_fb = self.control.forward(y=y)
+        else:
+            u_fb = self.control.forward(**y, **kwargs)
+
+        if isinstance(u_fb, np.ndarray):
+            out = self.system.forward(u=u_fb)
+        else:
+            out = self.system.forward(**u_fb)
+        return out
 
 
 class Sequential(MultipleSystem):
@@ -77,19 +108,17 @@ class Sequential(MultipleSystem):
         self.attach_sim_objects(obj_list)
 
     # implement
-    def _forward(self, **kwargs):
+    def _forward(self, **kwargs) -> Union[None, np.ndarray, dict]:
         self.first_obj.forward(**kwargs)
         out = self.first_obj.output
         for obj in self.other_obj_list:
             if out is None:
-                obj.forward()
-                out = obj.output
+                out = obj.forward()
             elif isinstance(out, dict):
-                obj.forward(**out)
-                out = obj.output
+                out = obj.forward(**out)
             else:
-                obj.forward(u=out)
-                out = obj.output
+                out = obj.forward(u=out)
+
         return out
 
 
@@ -129,7 +158,7 @@ class FirstOrderLinSys(LinSys):
         self.tau = tau
 
     # implement
-    def _output(self) -> Union[None, tuple, np.ndarray]:
+    def _output(self) -> np.ndarray:
         return self.state('x')[0]
 
 
@@ -146,7 +175,7 @@ class SecondOrderLinSys(LinSys):
         self.omega = omega
 
     # implement
-    def _output(self) -> Union[None, tuple, np.ndarray]:
+    def _output(self) -> np.ndarray:
         return self.state('x')[0]
 
 
@@ -167,7 +196,7 @@ class Differentiator(StaticObject):
         self.t_prev = None
 
     # implement
-    def _forward(self, u: np.ndarray):
+    def _forward(self, u: np.ndarray) -> np.ndarray:
         if self.u_prev is None:
             deriv = np.zeros_like(u)
         else:
