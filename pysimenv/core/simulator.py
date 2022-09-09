@@ -96,6 +96,17 @@ class Simulator(object):
             print("[simulator] Elapsed time: {:.4f} [s]".format(elapsed_time))
         self.finish_logging()
 
+    def save_sim_log(self, save_dir='./data/'):
+        os.makedirs(save_dir, exist_ok=True)
+        file = h5py.File(save_dir + 'log.hdf5', 'w')
+        self.model.save(file)
+        file.close()
+
+    def load_sim_log(self, save_dir='./data/'):
+        file = h5py.File(save_dir + 'log.hdf5', 'r')
+        self.model.load(file)
+        file.close()
+
 
 class ParallelSimulator(object):
     def __init__(self, simulation_fun: RemoteFunction):
