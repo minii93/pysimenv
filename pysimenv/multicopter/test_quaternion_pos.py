@@ -1,11 +1,11 @@
 import numpy as np
-from pysimenv.core.system import MultipleSystem
+from pysimenv.core.base import SimObject
 from pysimenv.multicopter.model import MulticopterDynamic
 from pysimenv.multicopter.control import QuaternionPosControl, QuaternionAttControl
 from pysimenv.core.simulator import Simulator
 
 
-class Model(MultipleSystem):
+class Model(SimObject):
     def __init__(self):
         super(Model, self).__init__()
 
@@ -30,7 +30,7 @@ class Model(MultipleSystem):
         )
         self.pos_control = QuaternionPosControl(m, K_pos)
 
-        self.attach_sim_objects([self.quadrotor, self.att_control, self.pos_control])
+        self._attach_sim_objs([self.quadrotor, self.att_control, self.pos_control])
 
     def _forward(self, p_d: np.ndarray, v_d: np.ndarray = np.zeros(3)):
         p = self.quadrotor.pos

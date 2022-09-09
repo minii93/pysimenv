@@ -1,13 +1,13 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import Tuple
-from pysimenv.core.system import MultipleSystem
+from pysimenv.core.base import SimObject
 from pysimenv.missile.model import PlanarManVehicle2dof
 from pysimenv.missile.guidance import Guidance2dim
 from pysimenv.missile.util import RelKin2dim, CloseDistCond, closest_instant, lin_interp
 
 
-class Engagement2dim(MultipleSystem):
+class Engagement2dim(SimObject):
     INTERCEPTED = 1
     MISSILE_STOP = 2
     IS_OUT_OF_VIEW = 3
@@ -20,15 +20,15 @@ class Engagement2dim(MultipleSystem):
         self.rel_kin = RelKin2dim()
         self.close_dist_cond = CloseDistCond(r_threshold=10.0)
 
-        self.attach_sim_objects([self.missile, self.target, self.guidance])
+        self._attach_sim_objs([self.missile, self.target, self.guidance])
 
     # override
-    def reset(self):
-        super(Engagement2dim, self).reset()
+    def _reset(self):
+        super(Engagement2dim, self)._reset()
         self.close_dist_cond.reset()
 
     # implement
-    def initialize(self):
+    def _initialize(self):
         x_M = self.missile.state('x')
         x_T = self.target.state('x')
         self.rel_kin.evaluate(x_M, x_T)
@@ -49,10 +49,10 @@ class Engagement2dim(MultipleSystem):
         )
 
     # implement
-    def check_stop_condition(self) -> Tuple[bool, int]:
+    def _check_stop_condition(self) -> Tuple[bool, int]:
         to_stop = False
 
-        missile_stop, _ = self.missile.check_stop_condition()
+        missile_stop = self.missile.check_stop_condition()
         if self.intercepted():  # probable interception
             to_stop = True
             self.flag = self.INTERCEPTED
@@ -61,7 +61,7 @@ class Engagement2dim(MultipleSystem):
             to_stop = True
             self.flag = self.MISSILE_STOP
 
-        return to_stop, self.flag
+        return to_stop
 
     def intercepted(self) -> bool:
         return self.close_dist_cond.check()

@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from typing import Union, Callable, Optional, Tuple
+from typing import Union, Callable, Optional, Dict, List
 from pysimenv.core.util import SimClock, Timer, Logger
 from pysimenv.core.error import NoSimClockError
 
@@ -114,42 +114,117 @@ class StateVariable(object):
 class SimObject(object):
     FLAG_OPERATING = 0
 
-    def __init__(self, interval: Union[int, float] = -1):
+    def __init__(self, interval: Union[int, float] = -1, name: str = 'model'):
+        self.name = name
         self.flag: int = SimObject.FLAG_OPERATING
+        self.state_vars: Dict[str, StateVariable] = dict()
+
+        self.sim_objs: List[SimObject] = []
         self._sim_clock: Optional[SimClock] = None
         self._timer = Timer(event_time_interval=interval)
         self._logger = Logger()
         self._last_output = None
 
-    def attach_sim_clock(self, sim_clock: SimClock):
+    def _add_state_vars(self, **kwargs):
+        if kwargs is not None:
+            for name, initial_state in kwargs.items():
+                if isinstance(initial_state, float):
+                    initial_state = np.array([initial_state])
+                var = StateVariable(initial_state)
+                self.state_vars[name] = var
+
+    def _attach_sim_objs(self, objs: Union['SimObject', list, tuple]):
+        if isinstance(objs, SimObject):
+            objs = [SimObject]
+
+        for obj in objs:
+            if not isinstance(obj, SimObject):
+                continue
+            self.sim_objs.append(obj)
+
+    def collect_state_vars(self) -> List[StateVariable]:
+        state_vars = []
+        for var in self.state_vars.values():
+            state_vars.append(var)
+        for sim_obj in self.sim_objs:
+            state_vars.extend(sim_obj.collect_state_vars())
+        return state_vars
+
+    @property
+    def num_state_vars(self):
+        return len(self.state_vars)
+
+    @property
+    def num_sim_objs(self):
+        return len(self.sim_objs)
+
+    def _attach_sim_clock(self, sim_clock: SimClock):
         self._sim_clock = sim_clock
         self._timer.attach_sim_clock(sim_clock)
         self._timer.turn_on()
 
-    def attach_log_timer(self, log_timer: Timer):
+    def _attach_log_timer(self, log_timer: Timer):
         self._logger.attach_log_timer(log_timer)
-
-    def initialize(self):
-        self._initialize()
 
     def _initialize(self):
         pass
 
-    def detach_sim_clock(self):
+    def _detach_sim_clock(self):
         self._sim_clock = None
         self._timer.turn_off()
         self._timer.detach_sim_clock()
 
-    def detach_log_timer(self):
+    def _detach_log_timer(self):
         self._logger.detach_log_timer()
-    
-    def reset(self):
+
+    def _reset(self):
         self.flag = SimObject.FLAG_OPERATING
         self._timer.reset()
         self._logger.clear()
 
+    def attach_sim_clock(self, sim_clock: SimClock):
+        self._attach_sim_clock(sim_clock)
+        for sim_obj in self.sim_objs:
+            sim_obj.attach_sim_clock(sim_clock)
+
+    def attach_log_timer(self, log_timer: Timer):
+        self._attach_log_timer(log_timer)
+        for sim_obj in self.sim_objs:
+            sim_obj.attach_log_timer(log_timer)
+
+    def initialize(self):
+        self._initialize()
+        for sim_obj in self.sim_objs:
+            sim_obj.initialize()
+
+    def detach_sim_clock(self):
+        self._detach_sim_clock()
+        for sim_obj in self.sim_objs:
+            sim_obj.detach_sim_clock()
+
+    def detach_log_timer(self):
+        self._detach_log_timer()
+        for sim_obj in self.sim_objs:
+            sim_obj.detach_log_timer()
+    
+    def reset(self):
+        self._reset()
+        for sim_obj in self.sim_objs:
+            sim_obj.reset()
+
     def check_sim_clock(self):
         assert self._sim_clock is not None, "Attach a sim_clock first!"
+        for sim_obj in self.sim_objs:
+            sim_obj.check_sim_clock()
+
+    def set_state(self, **kwargs) -> None:
+        """
+        :param kwargs: states
+        :return: None
+        """
+        if len(kwargs) > 0:
+            for name, state in kwargs.items():
+                self.state_vars[name].apply_state(state)
 
     @property
     def time(self) -> float:
@@ -157,7 +232,47 @@ class SimObject(object):
             raise NoSimClockError
         return self._sim_clock.time
 
-    def forward(self, *args, **kwargs):
+    def state(self, *args) -> Union[np.ndarray, Dict[str, np.ndarray]]:
+        if len(args) == 1:
+            return self.state_vars[args[0]].state
+        elif len(args) == 0:
+            return self._get_states()
+        else:
+            states = dict()
+            for name in args:
+                var = self.state_vars[name]
+                states[name] = var.state
+            return states
+
+    def _get_states(self) -> Dict[str, np.ndarray]:
+        states = dict()
+        for name, var in self.state_vars.items():
+            states[name] = var.state
+        return states
+
+    def deriv(self, *args) -> Union[np.ndarray, Dict[str, np.ndarray]]:
+        if len(args) == 1:
+            return self.state_vars[args[0]].deriv
+        elif len(args) == 0:
+            return self._get_derivs()
+        else:
+            derivs = dict()
+            for name in args:
+                var = self.state_vars[name]
+                derivs[name] = var.deriv
+            return derivs
+
+    def _get_derivs(self) -> Dict[str, np.ndarray]:
+        derivs = dict()
+        for name, var in self.state_vars.items():
+            derivs[name] = var.deriv
+        return derivs
+
+    @property
+    def output(self) -> Union[None, np.ndarray, dict]:
+        return self._last_output
+
+    def forward(self, *args, **kwargs) -> Union[None, np.ndarray, dict]:
         self._timer.forward()
         output = self._forward(*args, **kwargs)
 
@@ -166,13 +281,21 @@ class SimObject(object):
 
         return self._last_output
 
-    # to be implemented
-    def _forward(self, *args, **kwargs):
-        return NotImplementedError
+    # should be implemented
+    def _forward(self, *args, **kwargs) -> Union[None, np.ndarray, dict]:
+        raise NotImplementedError
 
-    @property
-    def output(self) -> Union[None, np.ndarray, dict]:
-        return self._last_output
+    # to be implemented
+    def _check_stop_condition(self) -> Optional[bool]:
+        pass
+
+    def check_stop_condition(self) -> bool:
+        to_stop_list = [self._check_stop_condition()]
+        for sim_obj in self.sim_objs:
+            to_stop_list.append(sim_obj.check_stop_condition())
+
+        to_stop = np.array(to_stop_list, dtype=bool).any()
+        return to_stop
 
     def history(self, *args):
         """
@@ -182,31 +305,192 @@ class SimObject(object):
         return self._logger.get(*args)
 
     # to be implemented
-    def check_stop_condition(self) -> Tuple[bool, int]:
-        to_stop = False
-        flag = self.flag
-        return to_stop, flag
+    def report(self):
+        pass
+
+    def default_plot(self, show=False, var_keys=None, var_ind_dict=None, var_names_dict=None):
+        if var_keys is None:
+            var_keys = list(self._logger.keys())
+            var_keys.remove('t')
+        if var_ind_dict is None:
+            var_ind_dict = dict()
+        if var_names_dict is None:
+            var_names_dict = dict()
+
+        fig_axs = dict()
+        time_list = self.history('t')
+
+        for var_key in var_keys:
+            var_list = self.history(var_key)
+            if var_list.ndim == 1:
+                var_list = np.reshape(var_list, var_list.shape + (1, ))
+
+            if var_key in var_ind_dict:
+                ind = var_ind_dict[var_key]
+            else:
+                ind = list(range(var_list.shape[1]))
+
+            if var_key in var_names_dict:
+                names = var_names_dict[var_key]
+            else:
+                names = [var_key + "_" + str(k) for k in ind]
+
+            subplot_num = len(ind)
+            fig, ax = plt.subplots(subplot_num, 1)
+            fig_axs[var_key] = {
+                'fig': fig,
+                'ax': ax
+            }
+            for i in range(subplot_num):
+                if subplot_num == 1:
+                    ax_ = ax
+                else:
+                    ax_ = ax[i]
+                ax_.plot(time_list, var_list[:, ind[i]], label="Actual")
+                ax_.set_xlabel("Time (s)")
+                ax_.set_ylabel(names[i])
+                ax_.grid()
+                ax_.legend()
+            fig.suptitle(var_key)
+            fig.tight_layout()
+
+        if show:
+            plt.show()
+        else:
+            plt.draw()
+            plt.pause(0.01)
+        return fig_axs
+
+    def save(self, h5file=None, data_group=''):
+        data_group = data_group + '/' + self.name
+        self._logger.save(h5file, data_group)
+        for sim_obj in self.sim_objs:
+            sim_obj.save(h5file, data_group)
+
+    def load(self, h5file=None, data_group=''):
+        data_group = data_group + '/' + self.name
+        self._logger.load(h5file, data_group)
+        for sim_obj in self.sim_objs:
+            sim_obj.load(h5file, data_group)
 
 
 class StaticObject(SimObject):
-    def __init__(self, interval: Union[int, float] = -1, eval_fun=None):
-        super(StaticObject, self).__init__(interval)
+    def __init__(self, eval_fun, interval: Union[int, float] = -1, name='static_obj'):
+        super(StaticObject, self).__init__(interval, name)
         self.eval_fun = eval_fun
 
-    # override
-    def forward(self, *args, **kwargs) -> Union[None, np.ndarray, dict]:
-        self._timer.forward()
-        if self._timer.is_event:
-            self._last_output = self._forward(*args, **kwargs)
+    # implement
+    def _forward(self, *args, **kwargs) -> Union[None, np.ndarray, dict]:
+        return self.eval_fun(*args, **kwargs)
 
-        return self._last_output
+
+class DynSystem(SimObject):
+    def __init__(self, initial_states: Dict[str, ArrayType], deriv_fun=None, output_fun=None, name='dyn_sys'):
+        """ initial_states: dictionary of (state1, state2, ...) """
+        super(DynSystem, self).__init__(name=name)
+        self._add_state_vars(**initial_states)
+        self.initial_states = initial_states
+
+        if isinstance(deriv_fun, BaseFunction):
+            self.deriv_fun = deriv_fun.evaluate
+        else:
+            self.deriv_fun = deriv_fun
+
+        if isinstance(output_fun, BaseFunction):
+            self.output_fun = output_fun.evaluate
+        else:
+            self.output_fun = output_fun
+
+    # override
+    def _reset(self):
+        super(DynSystem, self)._reset()
+        self.set_state(**self.initial_states)
 
     # may be implemented
-    def _forward(self, *args, **kwargs) -> Union[None, np.ndarray, dict]:
-        if self.eval_fun is None:
+    def _deriv(self, **kwargs) -> Dict[str, np.ndarray]:
+        """ implement this method if needed
+        args: dictionary of {name1: state1, name2: state2, ..., input_name1: input1, ...}
+        return: dictionary of {name1: derivState1, name2: derivState2, ...)
+        """
+        if self.deriv_fun is None:
             raise NotImplementedError
+        return self.deriv_fun(**kwargs)
+
+    # implement
+    def _forward(self, **kwargs) -> Union[None, np.ndarray, dict]:
+        states = self._get_states()
+        derivs = self._deriv(**states, **kwargs)
+
+        for name, var in self.state_vars.items():
+            var.set_deriv(derivs[name])
+
+        self._logger.append(t=self.time, **states, **kwargs)
+        return self._output()
+
+    # override
+    @property
+    def output(self) -> Union[None, np.ndarray, dict]:
+        return self._output()
+
+    # may be overridden
+    def _output(self) -> Union[None, np.ndarray, dict]:
+        if self.output_fun is None:
+            return None
         else:
-            return self.eval_fun(*args, **kwargs)
+            states = self._get_states()
+            return self.output_fun(**states)
+
+
+class TimeVaryingDynSystem(SimObject):
+    def __init__(self, initial_states: Dict[str, ArrayType], deriv_fun=None, output_fun=None, name='time_varying_dyn_sys'):
+        super(TimeVaryingDynSystem, self).__init__(name=name)
+        self._add_state_vars(**initial_states)
+        self.initial_states = initial_states
+
+        if isinstance(deriv_fun, BaseFunction):
+            self.deriv_fun = deriv_fun.evaluate
+        else:
+            self.deriv_fun = deriv_fun
+
+        if isinstance(output_fun, BaseFunction):
+            self.output_fun = output_fun.evaluate
+        else:
+            self.output_fun = output_fun
+
+    # override
+    def _reset(self):
+        super(TimeVaryingDynSystem, self)._reset()
+        self.set_state(**self.initial_states)
+
+    # to be implemented
+    def _deriv(self, t, **kwargs) -> Dict[str, np.ndarray]:
+        if self.deriv_fun is None:
+            raise NotImplementedError
+        return self.deriv_fun(t, **kwargs)
+
+    # implement
+    def _forward(self, **kwargs) -> Union[None, np.ndarray, dict]:
+        states = self._get_states()
+        derivs = self._deriv(t=self.time, **states, **kwargs)
+
+        for name, var in self.state_vars.items():
+            var.set_deriv(derivs[name])
+
+        self._logger.append(t=self.time, **states, **kwargs)
+        return self._output()
+
+    # override
+    @property
+    def output(self) -> Union[None, np.ndarray, dict]:
+        return self._output()
+
+    # may be overridden
+    def _output(self) -> Union[None, np.ndarray, dict]:
+        if self.output_fun is None:
+            return None
+        else:
+            states = self._get_states()
+            return self.output_fun(t=self.time, **states)
 
 
 class BaseFunction(object):

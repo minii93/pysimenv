@@ -31,7 +31,7 @@ First, let's import modules required for the simulation.
 ```python
 import numpy as np
 import matplotlib.pyplot as plt
-from pysimenv.core.system import DynSystem
+from pysimenv.core.base import DynSystem
 from pysimenv.core.simulator import Simulator
 ```
 
@@ -112,7 +112,7 @@ The entire code is written as
 ```python
 import numpy as np
 import matplotlib.pyplot as plt
-from pysimenv.core.system import DynSystem
+from pysimenv.core.base import DynSystem
 from pysimenv.core.simulator import Simulator
 
 
@@ -177,16 +177,16 @@ We begin with importing modules required for the simulation.
 ```python
 import numpy as np
 import scipy.linalg as lin
-from pysimenv.core.system import DynSystem, MultipleSystem
+from pysimenv.core.base import DynSystem, SimObject
 from pysimenv.core.simulator import Simulator
 ```
 
-`StaticObject` is used for defining a controller, `DynSystem` for a linear system, `MultipleSystem` for the closed-loop system.
+`DynSystem` is used for defining a linear system, and `SimObject` is used for defining the closed-loop system.
 
-Let us define the structure of the closed-loop system as a class inheriting from `MultipleSystem`.
+Let us define the structure of the closed-loop system as a class inheriting from `SimObject`.
 
 ```python
-class ClosedLoopSys(MultipleSystem):
+class ClosedLoopSys(SimObject):
     def __init__(self):
         super(ClosedLoopSys, self).__init__()
 ```
@@ -216,13 +216,11 @@ The control gain is calculated as
         self.K = np.linalg.inv(R).dot(B.transpose().dot(P))
 ```
 
-Every sub simulation object inheriting `SimObject`, which includes `DynSystem` object, must be attached to the super simulation object at the initialization phase. Therefore, we attach `self.linear_sys` as
+Any instance of `DynSystem` defined inside a class inheriting `SimObject` must be *attached* to the class instance at the initialization phase. (Actually, any instance of *any subclass* of `SimObject` must be attached to the class instance. The list of subclasses inheriting `SimObject` can be found in Overview section.) Therefore, attach `self.linear_sys` as
 
 ```python
-        self.attach_sim_objects([self.linear_sys])
+        self._attach_sim_objs([self.linear_sys])
 ```
-
-The list of simulation classes inheriting `SimObject` can be found in Overview section.
 
 We define the feedback structure by implementing `_forward` method.
 
@@ -250,11 +248,11 @@ The entire code is written as
 ```python
 import numpy as np
 import scipy.linalg as lin
-from pysimenv.core.system import DynSystem, MultipleSystem
+from pysimenv.core.base import DynSystem, SimObject
 from pysimenv.core.simulator import Simulator
 
 
-class ClosedLoopSys(MultipleSystem):
+class ClosedLoopSys(SimObject):
     def __init__(self):
         super(ClosedLoopSys, self).__init__()
 
@@ -275,7 +273,7 @@ class ClosedLoopSys(MultipleSystem):
         P = lin.solve_continuous_are(A, B, Q, R)
         self.K = np.linalg.inv(R).dot(B.transpose().dot(P))
 
-        self.attach_sim_objects([self.linear_sys])
+        self._attach_sim_objs([self.linear_sys])
 
     # implement
     def _forward(self):
@@ -316,8 +314,7 @@ We begin with importing modules required for the simulation.
 ```python
 import numpy as np
 import scipy.linalg as lin
-from pysimenv.core.base import StaticObject
-from pysimenv.core.system import DynSystem, MultipleSystem
+from pysimenv.core.base import StaticObject, SimObject, DynSystem
 from pysimenv.core.simulator import Simulator
 ```
 
@@ -335,10 +332,10 @@ We follow the same procedure as in Example 2. The difference is that now we use 
 
 To illustrate the usefulness of `StaticObject` class, the sampling interval (`interval` property) is intentionally set as 0.2(seconds) corresponding to sampling frequency of 5(Hz).
 
-We attach both the system object and controller object.
+Any instance of `DynSystem` and `StaticObject` should be attached to the class instance. Therefore, attach both the system object and controller object.
 
 ```python
-        self.attach_sim_objects([self.linear_sys, self.lqr_control])
+        self._attach_sim_objs([self.linear_sys, self.lqr_control])
 ```
 
 Then, we define the system structure by implementing `_forward` method.
@@ -356,12 +353,11 @@ The rest of the code is similar to that of Example 2. The entire code is written
 ```python
 import numpy as np
 import scipy.linalg as lin
-from pysimenv.core.base import StaticObject
-from pysimenv.core.system import DynSystem, MultipleSystem
+from pysimenv.core.base import StaticObject, SimObject, DynSystem
 from pysimenv.core.simulator import Simulator
 
 
-class ClosedLoopSys(MultipleSystem):
+class ClosedLoopSys(SimObject):
     def __init__(self):
         super(ClosedLoopSys, self).__init__()
 
@@ -384,7 +380,7 @@ class ClosedLoopSys(MultipleSystem):
 
         self.lqr_control = StaticObject(interval=0.2, eval_fun=lambda x: -K.dot(x))
 
-        self.attach_sim_objects([self.linear_sys, self.lqr_control])
+        self._attach_sim_objs([self.linear_sys, self.lqr_control])
 
     # implement
     def _forward(self):
@@ -442,21 +438,22 @@ u = k_{p}e + k_{i} \int_{0}^{t}e(\tau) \,d\tau
 $$
 where $e=v_{r} - v$ is the velocity error between the commanded velocity $v_{r}$ and actual velocity $v$.
 
-Import `DynObject` class from `pysimenv.core.system`.
+Import `SimObject` class from `pysimenv.core.base`.
 
 ```python
 import numpy as np
 import matplotlib.pyplot as plt
-from pysimenv.core.system import DynObject, DynSystem, MultipleSystem
+from pysimenv.core.base import SimObject, DynSystem
 from pysimenv.core.simulator import Simulator
 ```
 
-Define a class `PIController` that inherits from `DynObject` class. `PIController` class is defined to have a state named as `e_i` because we need to keep track the integral value of the error. The initial integral value is set as zero.
+Define a class `PIController` that inherits from `SimObject` class. `PIController` class is defined to have a state named as `e_i` because we need to keep track the integral value of the error. The initial integral value is set as zero.
 
 ```python
-class PIController(DynObject):
+class PIController(SimObject):
     def __init__(self, k_p, k_i):
-        super(PIController, self).__init__(initial_states={'e_i': np.array([0.])})
+        super(PIController, self).__init__()
+        self._add_state_vars(e_i=np.array([0.]))
         self.k_p = k_p
         self.k_i = k_i
 ```
@@ -484,7 +481,7 @@ Note that `set_deriv` method of the state variable should be called at each time
 Now define the closed-loop system. The closed-loop system includes the open-loop dynamic model of the car and the PI controller.
 
 ```python
-class CCCar(MultipleSystem):
+class CCCar(SimObject):
     """
     Cruise-controlled car
     """
@@ -506,7 +503,7 @@ class CCCar(MultipleSystem):
         # PI Controller
         self.pi_control = PIController(k_p=k_p, k_i=k_i)
 
-        self.attach_sim_objects([self.vel_dyn, self.pi_control])
+        self._attach_sim_objs([self.vel_dyn, self.pi_control])
 ```
 
 Implement `_forward` method of the closed-loop system.
@@ -536,7 +533,7 @@ The reference speed `v_r` and the slope of the road `theta` are passed from the 
         self._logger.append(t=self.time, e=e, u=u)
 ```
 
-`_logger` property is a `Logger` object defined in every object of `SimObject` class. The history of any variable can be logged just by calling `append` method and passing the corresponding key-value as an argument.
+`_logger` property is a `Logger` object defined in every instance of `SimObject` class. The history of any variable can be logged just by calling `append` method and passing the corresponding key-value as an argument.
 
 To determine the appropriate value for `k_p` and `k_i`, derive the equation for the error dynamics. Assuming that $v_{r}$ is constant and using the relation $e=v_{r}-v$, the error dynamics can be expressed as
 $$
@@ -584,13 +581,14 @@ The entire code is written as
 ```python
 import numpy as np
 import matplotlib.pyplot as plt
-from pysimenv.core.system import DynObject, DynSystem, MultipleSystem
+from pysimenv.core.base import SimObject, DynSystem
 from pysimenv.core.simulator import Simulator
 
 
-class PIController(DynObject):
+class PIController(SimObject):
     def __init__(self, k_p, k_i):
-        super(PIController, self).__init__(initial_states={'e_i': np.array([0.])})
+        super(PIController, self).__init__()
+        self._add_state_vars(e_i=np.array([0.]))
         self.k_p = k_p
         self.k_i = k_i
 
@@ -603,7 +601,7 @@ class PIController(DynObject):
         return u_pi
 
 
-class CCCar(MultipleSystem):
+class CCCar(SimObject):
     """
     Cruise-controlled car
     """
@@ -625,7 +623,7 @@ class CCCar(MultipleSystem):
         # PI Controller
         self.pi_control = PIController(k_p=k_p, k_i=k_i)
 
-        self.attach_sim_objects([self.vel_dyn, self.pi_control])
+        self._attach_sim_objs([self.vel_dyn, self.pi_control])
 
     # implement
     def _forward(self, v_r, theta):
@@ -685,6 +683,7 @@ def main():
 if __name__ == "__main__":
     main()
 
+
 ```
 
 The following figures show the simulation result.
@@ -703,4 +702,4 @@ Main components for modeling dynamic systems are summarized in the following dia
 
 <img src="figures/overview.svg">
 
-System classes inheriting `SimObject` are `StaticObject`, `DynObject`, `DynSystem`, `TimeVaryingDynSystem`, `MultipleSystem`.
+System classes inheriting `SimObject` are `StaticObject`, `DynSystem`, `TimeVaryingDynSystem`.

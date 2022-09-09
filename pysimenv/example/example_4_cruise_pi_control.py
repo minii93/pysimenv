@@ -1,12 +1,13 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from pysimenv.core.system import DynObject, DynSystem, MultipleSystem
+from pysimenv.core.base import SimObject, DynSystem
 from pysimenv.core.simulator import Simulator
 
 
-class PIController(DynObject):
+class PIController(SimObject):
     def __init__(self, k_p, k_i):
-        super(PIController, self).__init__(initial_states={'e_i': np.array([0.])})
+        super(PIController, self).__init__()
+        self._add_state_vars(e_i=np.array([0.]))
         self.k_p = k_p
         self.k_i = k_i
 
@@ -19,7 +20,7 @@ class PIController(DynObject):
         return u_pi
 
 
-class CCCar(MultipleSystem):
+class CCCar(SimObject):
     """
     Cruise-controlled car
     """
@@ -41,7 +42,7 @@ class CCCar(MultipleSystem):
         # PI Controller
         self.pi_control = PIController(k_p=k_p, k_i=k_i)
 
-        self.attach_sim_objects([self.vel_dyn, self.pi_control])
+        self._attach_sim_objs([self.vel_dyn, self.pi_control])
 
     # implement
     def _forward(self, v_r, theta):

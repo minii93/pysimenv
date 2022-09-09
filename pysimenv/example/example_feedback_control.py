@@ -1,7 +1,6 @@
 import numpy as np
-from pysimenv.core.base import StaticObject
+from pysimenv.core.base import StaticObject, DynSystem
 from pysimenv.core.simulator import Simulator
-from pysimenv.core.system import DynSystem
 from pysimenv.common.model import OFBControl
 
 

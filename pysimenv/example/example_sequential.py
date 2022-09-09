@@ -1,6 +1,6 @@
 import numpy as np
 from pysimenv.common.model import Sequential, SignalGenerator
-from pysimenv.core.system import DynSystem
+from pysimenv.core.base import DynSystem
 from pysimenv.core.simulator import Simulator
 
 

@@ -1,12 +1,11 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from typing import Union, List, Tuple, Optional
-from pysimenv.core.base import SimObject, StaticObject, ArrayType
-from pysimenv.core.system import DynObject, MultipleSystem, DynSystem
+from pysimenv.core.base import SimObject, DynSystem, ArrayType
 from pysimenv.common import orientation, util
 
 
-class SignalGenerator(StaticObject):
+class SignalGenerator(SimObject):
     def __init__(self, shaping_fun, interval: Union[int, float] = -1):
         super(SignalGenerator, self).__init__(interval=interval)
         self.shaping_fun = shaping_fun
@@ -16,7 +15,7 @@ class SignalGenerator(StaticObject):
         return self.shaping_fun(self.time)
 
 
-class Scope(StaticObject):
+class Scope(SimObject):
     def __init__(self):
         super(Scope, self).__init__()
 
@@ -48,13 +47,13 @@ class Scope(StaticObject):
             plt.pause(0.01)
 
 
-class FeedbackControl(MultipleSystem):
-    def __init__(self, system: DynObject, control: StaticObject):
+class FeedbackControl(SimObject):
+    def __init__(self, system: SimObject, control: SimObject):
         super(FeedbackControl, self).__init__()
         self.system = system
         self.control = control
 
-        self.attach_sim_objects([system, control])
+        self._attach_sim_objs([system, control])
 
     # implement
     def _forward(self, **kwargs) -> Union[None, np.ndarray, dict]:
@@ -71,16 +70,16 @@ class FeedbackControl(MultipleSystem):
         return out
 
 
-class OFBControl(MultipleSystem):
+class OFBControl(SimObject):
     """
     Output feedback control
     """
-    def __init__(self, system: DynObject, control: StaticObject):
+    def __init__(self, system: SimObject, control: SimObject):
         super(OFBControl, self).__init__()
         self.system = system
         self.control = control
 
-        self.attach_sim_objects([system, control])
+        self._attach_sim_objs([system, control])
 
     # implement
     def _forward(self, **kwargs) -> Union[None, np.ndarray, dict]:
@@ -97,7 +96,7 @@ class OFBControl(MultipleSystem):
         return out
 
 
-class Sequential(MultipleSystem):
+class Sequential(SimObject):
     def __init__(self, obj_list: Union[List[SimObject], Tuple[SimObject]]):
         super(Sequential, self).__init__()
         assert len(obj_list) > 0, "(sequential) Invalid obj_list!"
@@ -105,7 +104,7 @@ class Sequential(MultipleSystem):
         self.first_obj = obj_list[0]
         self.other_obj_list = obj_list[1:]
 
-        self.attach_sim_objects(obj_list)
+        self._attach_sim_objs(obj_list)
 
     # implement
     def _forward(self, **kwargs) -> Union[None, np.ndarray, dict]:
@@ -132,7 +131,7 @@ class LinSys(DynSystem):
         self.A = A
         self.B = B
         if C is None:
-            C = np.eye(self.state_dim, dtype=np.float32)
+            C = np.eye(A.shape[0], dtype=np.float32)
         self.C = C
 
     # implement
@@ -189,7 +188,7 @@ class Integrator(DynSystem):
         super(Integrator, self).__init__({'x': initial_state}, deriv_fun)
 
 
-class Differentiator(StaticObject):
+class Differentiator(SimObject):
     def __init__(self):
         super(Differentiator, self).__init__()
         self.u_prev = None
@@ -209,11 +208,12 @@ class Differentiator(StaticObject):
         return deriv
 
 
-class PIDControl(DynObject):
+class PIDControl(SimObject):
     def __init__(self, k_p: Union[float, np.ndarray], k_i: Union[float, np.ndarray], k_d: Union[float, np.ndarray],
                  windup_limit=None,
                  interval: Union[int, float] = -1):
-        super(PIDControl, self).__init__(initial_states={'e_i': np.zeros_like(k_p)}, interval=interval)
+        super(PIDControl, self).__init__(interval=interval)
+        self._add_state_vars(e_i=np.zeros_like(k_p))
         self.k_p = k_p
         self.k_i = k_i
         self.k_d = k_d

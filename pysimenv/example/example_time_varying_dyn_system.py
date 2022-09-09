@@ -1,4 +1,4 @@
-from pysimenv.core.system import TimeVaryingDynSystem
+from pysimenv.core.base import TimeVaryingDynSystem
 from pysimenv.core.simulator import Simulator
 
 

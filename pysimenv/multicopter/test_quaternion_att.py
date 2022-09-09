@@ -1,5 +1,5 @@
 import numpy as np
-from pysimenv.core.system import MultipleSystem
+from pysimenv.core.base import SimObject
 from pysimenv.multicopter.model import MulticopterDynamic
 from pysimenv.multicopter.control import QuaternionAttControl
 from pysimenv.common.orientation import euler_angles_to_rotation
@@ -7,7 +7,7 @@ from pysimenv.common.model import FlatEarthEnv
 from pysimenv.core.simulator import Simulator
 
 
-class Model(MultipleSystem):
+class Model(SimObject):
     def __init__(self):
         super(Model, self).__init__()
 
@@ -26,7 +26,7 @@ class Model(MultipleSystem):
         K = QuaternionAttControl.gain(Q, R)
         self.att_control = QuaternionAttControl(J, K)
 
-        self.attach_sim_objects([self.quadrotor, self.att_control])
+        self._attach_sim_objs([self.quadrotor, self.att_control])
 
     def _forward(self, q_d: np.ndarray, omega_d: np.ndarray = np.zeros(3)):
         q = self.quadrotor.quaternion

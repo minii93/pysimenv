@@ -7,11 +7,11 @@ from typing import List
 from pytictoc import TicToc
 from ray.remote_function import RemoteFunction
 from pysimenv.core.util import SimClock, Timer, Logger
-from pysimenv.core.system import DynObject
+from pysimenv.core.base import SimObject
 
 
 class Simulator(object):
-    def __init__(self, model: DynObject, verbose: bool = True, reset_model: bool = True):
+    def __init__(self, model: SimObject, verbose: bool = True, reset_model: bool = True):
         self.sim_clock = SimClock()
         self.log_timer = Timer(np.inf)
         self.log_timer.attach_sim_clock(self.sim_clock)
@@ -22,6 +22,7 @@ class Simulator(object):
         if reset_model:
             self.model.reset()
 
+        self.state_vars = model.collect_state_vars()
         self.verbose = verbose
 
     def reset(self):
@@ -42,24 +43,24 @@ class Simulator(object):
         self.sim_clock.major_time_step = True
         self.log_timer.forward()
         self.model.forward(**kwargs)
-        for var in self.model.state_vars.values():
+        for var in self.state_vars:
             var.rk4_update_1(dt)
         self.sim_clock.major_time_step = False
 
         self.sim_clock.apply_time(t_0 + dt / 2.)
         self.log_timer.forward()
         self.model.forward(**kwargs)
-        for var in self.model.state_vars.values():
+        for var in self.state_vars:
             var.rk4_update_2(dt)
 
         self.model.forward(**kwargs)
-        for var in self.model.state_vars.values():
+        for var in self.state_vars:
             var.rk4_update_3(dt)
 
         self.sim_clock.apply_time(t_0 + dt - 10 * self.sim_clock.time_res)
         self.log_timer.forward()
         self.model.forward(**kwargs)
-        for var in self.model.state_vars.values():
+        for var in self.state_vars:
             var.rk4_update_4(dt)
 
         self.sim_clock.apply_time(t_0 + dt)
@@ -80,7 +81,7 @@ class Simulator(object):
         # perform propagation
         iter_num = min(round(time/dt), np.iinfo(np.int32).max)
         for i in range(iter_num):
-            to_stop, _ = self.model.check_stop_condition()
+            to_stop = self.model.check_stop_condition()
             if to_stop:
                 break
             self.step(dt, **kwargs)
@@ -94,6 +95,17 @@ class Simulator(object):
         if self.verbose:
             print("[simulator] Elapsed time: {:.4f} [s]".format(elapsed_time))
         self.finish_logging()
+
+    def save_sim_log(self, save_dir='./data/'):
+        os.makedirs(save_dir, exist_ok=True)
+        file = h5py.File(save_dir + 'log.hdf5', 'w')
+        self.model.save(file)
+        file.close()
+
+    def load_sim_log(self, save_dir='./data/'):
+        file = h5py.File(save_dir + 'log.hdf5', 'r')
+        self.model.load(file)
+        file.close()
 
 
 class ParallelSimulator(object):
