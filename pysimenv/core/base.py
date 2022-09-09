@@ -133,7 +133,7 @@ class SimObject(object):
                 var = StateVariable(initial_state)
                 self.state_vars[name] = var
 
-    def attach_sim_objs(self, objs: Union['SimObject', list, tuple]):
+    def _attach_sim_objs(self, objs: Union['SimObject', list, tuple]):
         if isinstance(objs, SimObject):
             objs = [SimObject]
 
