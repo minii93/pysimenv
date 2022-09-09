@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from typing import Union, Callable, Optional, Tuple
+from typing import Union, Callable, Optional, Dict, List
 from pysimenv.core.util import SimClock, Timer, Logger
 from pysimenv.core.error import NoSimClockError
 
@@ -114,42 +114,99 @@ class StateVariable(object):
 class SimObject(object):
     FLAG_OPERATING = 0
 
-    def __init__(self, interval: Union[int, float] = -1):
+    def __init__(self, interval: Union[int, float] = -1, name: str = 'model'):
+        self.name = name
         self.flag: int = SimObject.FLAG_OPERATING
+        self.sim_objs: List[SimObject] = []
+        self.state_vars: Dict[str, StateVariable] = dict()
         self._sim_clock: Optional[SimClock] = None
         self._timer = Timer(event_time_interval=interval)
         self._logger = Logger()
         self._last_output = None
 
-    def attach_sim_clock(self, sim_clock: SimClock):
+    def attach_sim_objs(self, objs: Union['SimObject', list, tuple]):
+        if isinstance(objs, SimObject):
+            objs = [SimObject]
+
+        for obj in objs:
+            if not isinstance(obj, SimObject):
+                continue
+            self.sim_objs.append(obj)
+
+    def collect_state_vars(self) -> List[StateVariable]:
+        state_vars = []
+        for var in self.state_vars.values():
+            state_vars.append(var)
+        for sim_obj in self.sim_objs:
+            state_vars.extend(sim_obj.collect_state_vars())
+        return state_vars
+
+    @property
+    def num_state_vars(self):
+        return len(self.state_vars)
+
+    @property
+    def num_sim_objs(self):
+        return len(self.sim_objs)
+
+    def _attach_sim_clock(self, sim_clock: SimClock):
         self._sim_clock = sim_clock
         self._timer.attach_sim_clock(sim_clock)
         self._timer.turn_on()
 
-    def attach_log_timer(self, log_timer: Timer):
+    def _attach_log_timer(self, log_timer: Timer):
         self._logger.attach_log_timer(log_timer)
-
-    def initialize(self):
-        self._initialize()
 
     def _initialize(self):
         pass
 
-    def detach_sim_clock(self):
+    def _detach_sim_clock(self):
         self._sim_clock = None
         self._timer.turn_off()
         self._timer.detach_sim_clock()
 
-    def detach_log_timer(self):
+    def _detach_log_timer(self):
         self._logger.detach_log_timer()
-    
-    def reset(self):
+
+    def _reset(self):
         self.flag = SimObject.FLAG_OPERATING
         self._timer.reset()
         self._logger.clear()
 
+    def attach_sim_clock(self, sim_clock: SimClock):
+        self._attach_sim_clock(sim_clock)
+        for sim_obj in self.sim_objs:
+            sim_obj.attach_sim_clock(sim_clock)
+
+    def attach_log_timer(self, log_timer: Timer):
+        self._attach_log_timer(log_timer)
+        for sim_obj in self.sim_objs:
+            sim_obj.attach_log_timer(log_timer)
+
+    def initialize(self):
+        self._initialize()
+        for sim_obj in self.sim_objs:
+            sim_obj.initialize()
+
+    def detach_sim_clock(self):
+        self._detach_sim_clock()
+        for sim_obj in self.sim_objs:
+            sim_obj.detach_sim_clock()
+
+    def detach_log_timer(self):
+        self._detach_log_timer()
+        for sim_obj in self.sim_objs:
+            sim_obj.detach_log_timer()
+    
+    def reset(self):
+        self._reset()
+        for sim_obj in self.sim_objs:
+            sim_obj.reset()
+
     def check_sim_clock(self):
         assert self._sim_clock is not None, "Attach a sim_clock first!"
+        for sim_obj in self.sim_objs:
+            sim_obj.check_sim_clock()
 
     @property
     def time(self) -> float:
@@ -166,7 +223,7 @@ class SimObject(object):
 
         return self._last_output
 
-    # to be implemented
+    # should be implemented
     def _forward(self, *args, **kwargs):
         return NotImplementedError
 
@@ -182,15 +239,33 @@ class SimObject(object):
         return self._logger.get(*args)
 
     # to be implemented
-    def check_stop_condition(self) -> Tuple[bool, int]:
-        to_stop = False
-        flag = self.flag
-        return to_stop, flag
+    def _check_stop_condition(self) -> Optional[bool]:
+        pass
+
+    def check_stop_condition(self) -> bool:
+        to_stop_list = [self._check_stop_condition()]
+        for sim_obj in self.sim_objs:
+            to_stop_list.append(sim_obj.check_stop_condition())
+
+        to_stop = np.array(to_stop_list, dtype=bool).any()
+        return to_stop
+
+    def save(self, h5file=None, data_group=''):
+        data_group = data_group + '/' + self.name
+        self._logger.save(h5file, data_group)
+        for sim_obj in self.sim_objs:
+            sim_obj.save(h5file, data_group)
+
+    def load(self, h5file=None, data_group=''):
+        data_group = data_group + '/' + self.name
+        self._logger.load(h5file, data_group)
+        for sim_obj in self.sim_objs:
+            sim_obj.load(h5file, data_group)
 
 
 class StaticObject(SimObject):
-    def __init__(self, interval: Union[int, float] = -1, eval_fun=None):
-        super(StaticObject, self).__init__(interval)
+    def __init__(self, interval: Union[int, float] = -1, eval_fun=None, name='static_obj'):
+        super(StaticObject, self).__init__(interval, name)
         self.eval_fun = eval_fun
 
     # override

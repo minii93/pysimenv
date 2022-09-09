@@ -9,13 +9,9 @@ from pysimenv.core.base import SimObject, StateVariable, BaseFunction, ArrayType
 
 
 class DynObject(SimObject):
-    def __init__(self, initial_states: Optional[Dict[str, ArrayType]] = None, interval: Union[int, float] = -1):
-        """
-        :param kwargs: initial states
-        """
-        super(DynObject, self).__init__(interval=interval)
-        self.name = "base_system"
-        self.state_vars: Dict[str, StateVariable] = dict()
+    def __init__(self, initial_states: Optional[Dict[str, ArrayType]] = None, interval: Union[int, float] = -1,
+                 name='dyn_obj'):
+        super(DynObject, self).__init__(interval=interval, name=name)
 
         state_dim = 0
         if initial_states is not None:
@@ -95,13 +91,13 @@ class DynObject(SimObject):
     def report(self):
         pass
 
-    def save(self, h5file=None, data_group=''):
-        data_group = data_group + '/' + self.name
-        self._logger.save(h5file, data_group)
-
-    def load(self, h5file=None, data_group=''):
-        data_group = data_group + '/' + self.name
-        self._logger.load(h5file, data_group)
+    # def save(self, h5file=None, data_group=''):
+    #     data_group = data_group + '/' + self.name
+    #     self._logger.save(h5file, data_group)
+    #
+    # def load(self, h5file=None, data_group=''):
+    #     data_group = data_group + '/' + self.name
+    #     self._logger.load(h5file, data_group)
 
     def save_log_file(self, save_dir=None):
         if save_dir is None:
@@ -157,10 +153,9 @@ class DynObject(SimObject):
 
 class DynSystem(DynObject):
     def __init__(self, initial_states: Dict[str, ArrayType], deriv_fun=None, output_fun=None,
-                 interval: Union[int, float] = -1):
+                 interval: Union[int, float] = -1, name='dyn_sys'):
         """ initial_states: dictionary of (state1, state2, ...) """
-        super(DynSystem, self).__init__(initial_states=initial_states, interval=interval)
-        self.name = "dyn_system"
+        super(DynSystem, self).__init__(initial_states=initial_states, interval=interval, name=name)
         self.initial_states = initial_states
 
         if isinstance(deriv_fun, BaseFunction):
@@ -174,8 +169,8 @@ class DynSystem(DynObject):
             self.output_fun = output_fun
 
     # override
-    def reset(self):
-        super(DynSystem, self).reset()
+    def _reset(self):
+        super(DynSystem, self)._reset()
         self.set_state(**self.initial_states)
 
     # may be implemented
@@ -225,9 +220,8 @@ class DynSystem(DynObject):
 
 class TimeVaryingDynSystem(DynObject):
     def __init__(self, initial_states: Dict[str, ArrayType], deriv_fun=None, output_fun=None,
-                 interval: Union[int, float] = -1):
-        super(TimeVaryingDynSystem, self).__init__(initial_states=initial_states, interval=interval)
-        self.name = "time_varying_dyn_system"
+                 interval: Union[int, float] = -1, name='time_varying_dyn_sys'):
+        super(TimeVaryingDynSystem, self).__init__(initial_states=initial_states, interval=interval, name=name)
         self.initial_states = initial_states
 
         if isinstance(deriv_fun, BaseFunction):
@@ -241,7 +235,7 @@ class TimeVaryingDynSystem(DynObject):
             self.output_fun = output_fun
 
     # override
-    def reset(self):
+    def _reset(self):
         super(TimeVaryingDynSystem, self).reset()
         self.set_state(**self.initial_states)
 
@@ -274,87 +268,3 @@ class TimeVaryingDynSystem(DynObject):
         else:
             states = self._get_states()
             return self.output_fun(t=self.time, **states)
-
-
-class MultipleSystem(DynObject, ABC):
-    def __init__(self, interval: Union[int, float] = -1):
-        super(MultipleSystem, self).__init__(interval=interval)
-        self.name = "model"
-        self.sim_obj_list: List[SimObject] = []
-        self.sim_obj_num = 0
-
-    def attach_sim_objects(self, sim_obj_list: Union[SimObject, list, tuple]):
-        if isinstance(sim_obj_list, SimObject):
-            sim_obj_list = [sim_obj_list]
-
-        for sim_obj in sim_obj_list:
-            if not isinstance(sim_obj, SimObject):
-                continue
-
-            self.sim_obj_list.append(sim_obj)
-            self.sim_obj_num += 1
-            if isinstance(sim_obj, DynObject):
-                for name, var in sim_obj.state_vars.items():
-                    modified_name = 'sub' + str(self.sim_obj_num - 1) + '_' + name
-                    self.state_vars[modified_name] = var
-
-                self.num_state_var += sim_obj.num_state_var
-                self.state_dim += sim_obj.state_dim
-
-    # override
-    def attach_sim_clock(self, sim_clock: SimClock):
-        super(MultipleSystem, self).attach_sim_clock(sim_clock)
-        for sim_obj in self.sim_obj_list:
-            sim_obj.attach_sim_clock(sim_clock)
-
-    # override
-    def attach_log_timer(self, log_timer: Timer):
-        super(MultipleSystem, self).attach_log_timer(log_timer)
-        for sim_obj in self.sim_obj_list:
-            sim_obj.attach_log_timer(log_timer)
-
-    # override
-    def initialize(self):
-        super(MultipleSystem, self).initialize()
-        for sim_obj in self.sim_obj_list:
-            sim_obj.initialize()
-
-    # override
-    def reset(self):
-        super(MultipleSystem, self).reset()
-        for sim_obj in self.sim_obj_list:
-            sim_obj.reset()
-
-    # override
-    def check_sim_clock(self):
-        super(MultipleSystem, self).check_sim_clock()
-        for sim_obj in self.sim_obj_list:
-            sim_obj.check_sim_clock()
-
-    # implement
-    def check_stop_condition(self) -> Tuple[bool, list]:
-        to_stop_list = []
-        for sim_obj in self.sim_obj_list:
-            to_stop_list.append(sim_obj.check_stop_condition())
-
-        to_stop = np.array(to_stop_list, dtype=bool).any()
-        if to_stop:
-            self.flag = []
-            for sim_obj in self.sim_obj_list:
-                self.flag.append(sim_obj.flag)
-
-        return to_stop, self.flag
-
-    # implement
-    def save(self, h5file=None, data_group=''):
-        super().save(h5file, data_group)
-        for sim_obj in self.sim_obj_list:
-            if isinstance(sim_obj, DynObject):
-                sim_obj.save(h5file, data_group + '/' + self.name)
-
-    # implement
-    def load(self, h5file=None, data_group=''):
-        super().load(h5file, data_group)
-        for sim_obj in self.sim_obj_list:
-            if isinstance(sim_obj, DynObject):
-                sim_obj.load(h5file, data_group + '/' + self.name)
