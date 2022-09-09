@@ -114,11 +114,10 @@ class StateVariable(object):
 class SimObject(object):
     FLAG_OPERATING = 0
 
-    def __init__(self, interval: Union[int, float] = -1, name: str = 'model', initial_states: Optional[dict] = None):
+    def __init__(self, interval: Union[int, float] = -1, name: str = 'model'):
         self.name = name
         self.flag: int = SimObject.FLAG_OPERATING
         self.state_vars: Dict[str, StateVariable] = dict()
-        self._add_state_vars(initial_states)
 
         self.sim_objs: List[SimObject] = []
         self._sim_clock: Optional[SimClock] = None
@@ -126,9 +125,9 @@ class SimObject(object):
         self._logger = Logger()
         self._last_output = None
 
-    def _add_state_vars(self, initial_states: Optional[dict] = None):
-        if initial_states is not None:
-            for name, initial_state in initial_states.items():
+    def _add_state_vars(self, **kwargs):
+        if kwargs is not None:
+            for name, initial_state in kwargs.items():
                 if isinstance(initial_state, float):
                     initial_state = np.array([initial_state])
                 var = StateVariable(initial_state)
@@ -400,7 +399,8 @@ class DynSystem(SimObject):
     def __init__(self, initial_states: Dict[str, ArrayType], deriv_fun=None, output_fun=None,
                  interval: Union[int, float] = -1, name='dyn_sys'):
         """ initial_states: dictionary of (state1, state2, ...) """
-        super(DynSystem, self).__init__(initial_states=initial_states, interval=interval, name=name)
+        super(DynSystem, self).__init__(interval=interval, name=name)
+        self._add_state_vars(**initial_states)
         self.initial_states = initial_states
 
         if isinstance(deriv_fun, BaseFunction):
@@ -466,7 +466,8 @@ class DynSystem(SimObject):
 class TimeVaryingDynSystem(SimObject):
     def __init__(self, initial_states: Dict[str, ArrayType], deriv_fun=None, output_fun=None,
                  interval: Union[int, float] = -1, name='time_varying_dyn_sys'):
-        super(TimeVaryingDynSystem, self).__init__(initial_states=initial_states, interval=interval, name=name)
+        super(TimeVaryingDynSystem, self).__init__(interval=interval, name=name)
+        self._add_state_vars(**initial_states)
         self.initial_states = initial_states
 
         if isinstance(deriv_fun, BaseFunction):
