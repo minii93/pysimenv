@@ -1,10 +1,10 @@
 import numpy as np
 import scipy.linalg as lin
-from pysimenv.core.system import DynSystem, MultipleSystem
+from pysimenv.core.base import DynSystem, SimObject
 from pysimenv.core.simulator import Simulator
 
 
-class ClosedLoopSys(MultipleSystem):
+class ClosedLoopSys(SimObject):
     def __init__(self):
         super(ClosedLoopSys, self).__init__()
 
@@ -25,7 +25,7 @@ class ClosedLoopSys(MultipleSystem):
         P = lin.solve_continuous_are(A, B, Q, R)
         self.K = np.linalg.inv(R).dot(B.transpose().dot(P))
 
-        self.attach_sim_objects([self.linear_sys])
+        self._attach_sim_objs([self.linear_sys])
 
     # implement
     def _forward(self):

@@ -1,10 +1,10 @@
 import numpy as np
-from pysimenv.core.system import DynSystem, MultipleSystem
+from pysimenv.core.base import SimObject, DynSystem
 from pysimenv.common.model import PIDControl
 from pysimenv.core.simulator import Simulator
 
 
-class Model(MultipleSystem):
+class Model(SimObject):
     def __init__(self):
         super(Model, self).__init__()
         m = 1.
@@ -20,7 +20,7 @@ class Model(MultipleSystem):
         )
         self.pid_control = PIDControl(k_p=50., k_d=8., k_i=45.)
 
-        self.attach_sim_objects([self.dyn_sys, self.pid_control])
+        self._attach_sim_objs([self.dyn_sys, self.pid_control])
 
     # implement
     def _forward(self, p_d):

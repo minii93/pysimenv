@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from pysimenv.core.system import DynSystem
+from pysimenv.core.base import DynSystem
 from pysimenv.core.simulator import Simulator
 
 
