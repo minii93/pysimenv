@@ -1,8 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import Union
-from pysimenv.core.base import SimObject, StaticObject
-from pysimenv.core.system import DynObject
+from pysimenv.core.base import SimObject
 from pysimenv.missile.model import PlanarManVehicle2dof
 from pysimenv.missile.util import RelKin2dim
 
@@ -16,7 +15,7 @@ class Guidance2dim(SimObject):
         raise NotImplementedError
 
 
-class PurePNG2dim(StaticObject, Guidance2dim):
+class PurePNG2dim(Guidance2dim):
     def __init__(self, N: float = 3.0, interval: Union[int, float] = -1):
         super(PurePNG2dim, self).__init__(interval=interval)
         self.N = N
@@ -33,13 +32,14 @@ class PurePNG2dim(StaticObject, Guidance2dim):
         return a_y_cmd
 
 
-class IACBPNG(DynObject, Guidance2dim):
+class IACBPNG(Guidance2dim):
     """
     Biased PNG with terminal-angle constraint (impact angle control)
     """
     def __init__(self, N: float, tau: float, theta_M_0: float, theta_M_f: float, theta_T: float, lam_0: float,
                  sigma_max: float = float('inf'), b_max: float = float('inf')):
-        super(IACBPNG, self).__init__(initial_states={'B': np.array([0.])})
+        super(IACBPNG, self).__init__()
+        self._add_state_vars(B=np.array([0.]))
 
         # Guidance parameters
         self.N = N

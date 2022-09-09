@@ -29,8 +29,8 @@ def main():
     model.report_miss_distance()
     model.report_impact_angle()
     model.report_impact_time()
-    model.save_log_file('./data/planar_png/')
-    # model.load_log_file('./data/planar_png/')
+    simulator.save_sim_log('./data/planar_png/')
+    # simulator.load_sim_log('./data/planar_png/')
 
     plt.show()
 

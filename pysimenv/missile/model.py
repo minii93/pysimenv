@@ -1,8 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from typing import Tuple
-from pysimenv.core.base import ArrayType
-from pysimenv.core.system import DynSystem
+from pysimenv.core.base import DynSystem, ArrayType
 from pysimenv.common.util import wrap_to_pi
 
 
@@ -180,7 +178,7 @@ class PlanarMissile2dof(PlanarManVehicle2dof):
         self._logger.append(a_M_cmd=a_M_cmd)
 
     # implement
-    def check_stop_condition(self) -> Tuple[bool, int]:
+    def _check_stop_condition(self) -> bool:
         to_stop = False
         if self.is_stalled():
             to_stop = True
@@ -188,7 +186,7 @@ class PlanarMissile2dof(PlanarManVehicle2dof):
         if self.is_collided():
             to_stop = True
             self.flag = self.COLLIDED
-        return to_stop, self.flag
+        return to_stop
 
     def is_stalled(self) -> bool:
         return self.V < 10  # when the speed is less than 10m/s
