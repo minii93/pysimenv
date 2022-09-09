@@ -272,7 +272,7 @@ class SimObject(object):
     def output(self) -> Union[None, np.ndarray, dict]:
         return self._last_output
 
-    def forward(self, *args, **kwargs):
+    def forward(self, *args, **kwargs) -> Union[None, np.ndarray, dict]:
         self._timer.forward()
         output = self._forward(*args, **kwargs)
 
@@ -282,8 +282,8 @@ class SimObject(object):
         return self._last_output
 
     # should be implemented
-    def _forward(self, *args, **kwargs):
-        return NotImplementedError
+    def _forward(self, *args, **kwargs) -> Union[None, np.ndarray, dict]:
+        raise NotImplementedError
 
     # to be implemented
     def _check_stop_condition(self) -> Optional[bool]:
@@ -375,24 +375,13 @@ class SimObject(object):
 
 
 class StaticObject(SimObject):
-    def __init__(self, interval: Union[int, float] = -1, eval_fun=None, name='static_obj'):
+    def __init__(self, eval_fun, interval: Union[int, float] = -1, name='static_obj'):
         super(StaticObject, self).__init__(interval, name)
         self.eval_fun = eval_fun
 
-    # override
-    def forward(self, *args, **kwargs) -> Union[None, np.ndarray, dict]:
-        self._timer.forward()
-        if self._timer.is_event:
-            self._last_output = self._forward(*args, **kwargs)
-
-        return self._last_output
-
-    # may be implemented
+    # implement
     def _forward(self, *args, **kwargs) -> Union[None, np.ndarray, dict]:
-        if self.eval_fun is None:
-            raise NotImplementedError
-        else:
-            return self.eval_fun(*args, **kwargs)
+        return self.eval_fun(*args, **kwargs)
 
 
 class DynSystem(SimObject):
