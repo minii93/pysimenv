@@ -470,7 +470,7 @@ class TimeVaryingDynSystem(SimObject):
 
     # override
     def _reset(self):
-        super(TimeVaryingDynSystem, self).reset()
+        super(TimeVaryingDynSystem, self)._reset()
         self.set_state(**self.initial_states)
 
     # to be implemented
