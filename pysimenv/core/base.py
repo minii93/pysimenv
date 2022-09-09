@@ -396,10 +396,9 @@ class StaticObject(SimObject):
 
 
 class DynSystem(SimObject):
-    def __init__(self, initial_states: Dict[str, ArrayType], deriv_fun=None, output_fun=None,
-                 interval: Union[int, float] = -1, name='dyn_sys'):
+    def __init__(self, initial_states: Dict[str, ArrayType], deriv_fun=None, output_fun=None, name='dyn_sys'):
         """ initial_states: dictionary of (state1, state2, ...) """
-        super(DynSystem, self).__init__(interval=interval, name=name)
+        super(DynSystem, self).__init__(name=name)
         self._add_state_vars(**initial_states)
         self.initial_states = initial_states
 
@@ -428,16 +427,6 @@ class DynSystem(SimObject):
             raise NotImplementedError
         return self.deriv_fun(**kwargs)
 
-    # override
-    def forward(self, **kwargs) -> Union[None, np.ndarray, dict]:
-        self._timer.forward()
-        output = self._forward(**kwargs)
-
-        if self._timer.is_event:
-            self._last_output = output
-
-        return self._last_output
-
     # implement
     def _forward(self, **kwargs) -> Union[None, np.ndarray, dict]:
         states = self._get_states()
@@ -464,9 +453,8 @@ class DynSystem(SimObject):
 
 
 class TimeVaryingDynSystem(SimObject):
-    def __init__(self, initial_states: Dict[str, ArrayType], deriv_fun=None, output_fun=None,
-                 interval: Union[int, float] = -1, name='time_varying_dyn_sys'):
-        super(TimeVaryingDynSystem, self).__init__(interval=interval, name=name)
+    def __init__(self, initial_states: Dict[str, ArrayType], deriv_fun=None, output_fun=None, name='time_varying_dyn_sys'):
+        super(TimeVaryingDynSystem, self).__init__(name=name)
         self._add_state_vars(**initial_states)
         self.initial_states = initial_states
 
