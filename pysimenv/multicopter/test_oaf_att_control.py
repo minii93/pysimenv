@@ -1,12 +1,12 @@
 import numpy as np
 from pysimenv.core.simulator import Simulator
-from pysimenv.core.system import MultipleSystem
+from pysimenv.core.base import SimObject
 from pysimenv.common.orientation import euler_angles_to_rotation
 from pysimenv.multicopter.model import MulticopterDynamic, QuadXThrustModel
 from pysimenv.multicopter.control import OAFAttControl
 
 
-class Model(MultipleSystem):
+class Model(SimObject):
     def __init__(self):
         super(Model, self).__init__()
 
@@ -33,7 +33,7 @@ class Model(MultipleSystem):
         self.att_control = OAFAttControl(m=m, J=J, d_v=d_v, d_omega=d_omega,
                                          G=G, K_p=np.array([121., 121., 2.25]), K_d=np.array([22., 22., 3.]))
 
-        self.attach_sim_objects([
+        self._attach_sim_objs([
             self.quadrotor_dyn, self.att_control
         ])
 

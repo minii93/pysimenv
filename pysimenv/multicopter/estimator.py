@@ -1,6 +1,6 @@
 import numpy as np
 from typing import Union
-from pysimenv.core.system import DynSystem
+from pysimenv.core.base import DynSystem
 from pysimenv.common.model import FlatEarthEnv
 
 

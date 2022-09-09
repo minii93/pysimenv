@@ -1,11 +1,11 @@
 import numpy as np
 from pysimenv.core.simulator import Simulator
-from pysimenv.core.system import MultipleSystem
+from pysimenv.core.base import SimObject
 from pysimenv.multicopter.model import MulticopterDynamic, QuadXThrustModel
 from pysimenv.multicopter.control import OAFControl
 
 
-class Model(MultipleSystem):
+class Model(SimObject):
     def __init__(self):
         super(Model, self).__init__()
 
@@ -32,7 +32,7 @@ class Model(MultipleSystem):
                                   K_p=np.array([1.24, 1.24, 1.24, 225., 225.]),
                                   K_d=np.array([1., 1., 1., 30., 30.]))
 
-        self.attach_sim_objects([
+        self._attach_sim_objs([
             self.quadrotor_dyn, self.control
         ])
 

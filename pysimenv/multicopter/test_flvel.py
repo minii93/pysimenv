@@ -1,11 +1,11 @@
 import numpy as np
-from pysimenv.core.system import MultipleSystem
+from pysimenv.core.base import SimObject
 from pysimenv.multicopter.model import MulticopterDynamic
 from pysimenv.multicopter.control import FLVelControl
 from pysimenv.core.simulator import Simulator
 
 
-class FLVelTracking(MultipleSystem):
+class FLVelTracking(SimObject):
     def __init__(self):
         super(FLVelTracking, self).__init__()
 
@@ -23,7 +23,7 @@ class FLVelTracking(MultipleSystem):
         k_p_vel = np.array([5., 5., 5.])
         self.vel_control = FLVelControl(m, J, k_p_att, k_d_att, k_p_vel)
 
-        self.attach_sim_objects([self.quadrotor, self.vel_control])
+        self._attach_sim_objs([self.quadrotor, self.vel_control])
 
     # implement
     def _forward(self, v_d: np.ndarray = np.zeros(3)):

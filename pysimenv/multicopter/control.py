@@ -3,13 +3,13 @@ import scipy
 import matplotlib.pyplot as plt
 from pyquaternion import Quaternion
 from typing import Union, Tuple
-from pysimenv.core.base import StaticObject
+from pysimenv.core.base import SimObject, StaticObject
 from pysimenv.common.model import FlatEarthEnv
 from pysimenv.common.orientation import quaternion_to_axis_angle
 from pysimenv.multicopter.model import MulticopterDynamic
 
 
-class FLVelControl(StaticObject):
+class FLVelControl(SimObject):
     """
     Feedback linearization velocity control
     Reference: H. Voos, "Nonlinear Control of a Quadrotor Micro-UAV using Feedback-Linearization",
@@ -60,7 +60,7 @@ class FLVelControl(StaticObject):
         return u
 
 
-class QuaternionAttControl(StaticObject):
+class QuaternionAttControl(SimObject):
     """
     Attitude control based on quaternion
     Reference: J. Carino, H. Abaunza and P. Castillo,
@@ -100,7 +100,7 @@ class QuaternionAttControl(StaticObject):
         return K
 
 
-class QuaternionPosControl(StaticObject):
+class QuaternionPosControl(SimObject):
     e3 = np.array([0., 0., 1.])
     n = np.array([0., 0., -1.])
 
@@ -152,7 +152,7 @@ class QuaternionPosControl(StaticObject):
         return K
 
 
-class BSControl(StaticObject):
+class BSControl(SimObject):
     """
     Back-stepping control
     """
@@ -241,7 +241,7 @@ class BSControl(StaticObject):
         return np.array([u_1, u_2, u_3, u_4])
 
 
-class OAFControl(StaticObject):
+class OAFControl(SimObject):
     """
     Control in one actuator failure
     Reference: Y. Wu, K. Hu, X. M. Sun, and Y. Ma, "Nonlinear Control of Quadrotor for Fault Tolerance:
@@ -369,7 +369,7 @@ class OAFControl(StaticObject):
         ax.legend()
 
 
-class OAFAttControl(StaticObject):
+class OAFAttControl(SimObject):
     """
     Attitude control in one actuator failure
     """

@@ -1,8 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import Union, List
-from pysimenv.core.base import StaticObject
-from pysimenv.core.system import DynSystem
+from pysimenv.core.base import SimObject, DynSystem
 from pysimenv.core.simulator import Simulator
 from pysimenv.common.model import FlatEarthEnv
 from pysimenv.common import orientation
@@ -116,7 +115,6 @@ class MulticopterDynamic(DynSystem):
             plt.draw()
             plt.pause(0.1)
 
-
     def plot_euler_angles(self):
         time_list = self.history('t')
         rotation_list = self.history('R')
@@ -179,7 +177,7 @@ class QuadXMixer(object):
         return f_s
 
 
-class ActuatorFault(StaticObject):
+class ActuatorFault(SimObject):
     def __init__(self, t_list: List[float], alp_list: List[np.ndarray], rho_list: List[np.ndarray],
                  interval: Union[int, float] = -1):
         """
@@ -199,6 +197,7 @@ class ActuatorFault(StaticObject):
         self.rho = rho_list[0]
         self.next_ind = 1
 
+    # implement
     def _forward(self, f_s: np.ndarray):
         if self.next_ind < len(self.t_list):
             if self.time >= self.t_list[self.next_ind]:

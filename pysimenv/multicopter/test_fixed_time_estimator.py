@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from pysimenv.core.system import DynObject, MultipleSystem
+from pysimenv.core.base import SimObject
 from pysimenv.core.simulator import Simulator
 from pysimenv.multicopter.model import MulticopterDynamic, QuadXThrustModel, QuadXMixer, ActuatorFault
 from pysimenv.multicopter.control import QuaternionPosControl, QuaternionAttControl
@@ -8,13 +8,14 @@ from pysimenv.multicopter.estimator import FixedTimeFaultEstimator
 from pysimenv.common.model import FlatEarthEnv, SignalGenerator
 
 
-class ISMC(DynObject):
+class ISMC(SimObject):
     """
     Integral sliding mode control
     """
     def __init__(self, x_b_0: np.ndarray, N: np.ndarray, eps_1: float, eps_2: float,
                  J: np.ndarray, m: float):
-        super(ISMC, self).__init__(initial_states={'x_b': x_b_0})  # initialize the baseline state
+        super(ISMC, self).__init__()
+        self._add_state_vars(x_b=x_b_0)  # initialize the baseline state
         self.N = N.copy()
         self.eps_1 = eps_1
         self.eps_2 = eps_2
@@ -76,7 +77,7 @@ class ISMC(DynObject):
             plt.pause(0.01)
 
 
-class Model(MultipleSystem):
+class Model(SimObject):
     def __init__(self):
         super(Model, self).__init__()
 
@@ -155,7 +156,7 @@ class Model(MultipleSystem):
         self.ismc = ISMC(
             x_b_0=np.zeros(4), N=np.diag([1., 1., 1., 1.]), eps_1=0.5, eps_2=2.5, J=J, m=m)
 
-        self.attach_sim_objects([
+        self._attach_sim_objs([
             self.pos_trajectory, self.vel_trajectory,
             self.quadrotor_dyn, self.actuator_fault, self.att_control, self.pos_control,
             self.estimator, self.ismc])

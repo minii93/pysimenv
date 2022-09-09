@@ -1,11 +1,11 @@
 import numpy as np
 from pysimenv.core.simulator import Simulator
-from pysimenv.core.system import MultipleSystem
+from pysimenv.core.base import SimObject
 from pysimenv.multicopter.model import MulticopterDynamic
 from pysimenv.multicopter.control import BSControl
 
 
-class Model(MultipleSystem):
+class Model(SimObject):
     def __init__(self):
         super(Model, self).__init__()
 
@@ -23,7 +23,7 @@ class Model(MultipleSystem):
         alpha = np.array([16., 14., 16., 14., 16., 14., 2.5, 0.5, 2.5, 0.5, 2.5, 0.5])
         self.control = BSControl(m=m, J=J, alpha=alpha)
 
-        self.attach_sim_objects([self.quadrotor_dyn, self.control])
+        self._attach_sim_objs([self.quadrotor_dyn, self.control])
 
     def forward(self):
         sigma_d = np.array([2., 2., -2., np.deg2rad(15.)])
