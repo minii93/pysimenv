@@ -114,15 +114,25 @@ class StateVariable(object):
 class SimObject(object):
     FLAG_OPERATING = 0
 
-    def __init__(self, interval: Union[int, float] = -1, name: str = 'model'):
+    def __init__(self, interval: Union[int, float] = -1, name: str = 'model', initial_states: Optional[dict] = None):
         self.name = name
         self.flag: int = SimObject.FLAG_OPERATING
-        self.sim_objs: List[SimObject] = []
         self.state_vars: Dict[str, StateVariable] = dict()
+        self._add_state_vars(initial_states)
+
+        self.sim_objs: List[SimObject] = []
         self._sim_clock: Optional[SimClock] = None
         self._timer = Timer(event_time_interval=interval)
         self._logger = Logger()
         self._last_output = None
+
+    def _add_state_vars(self, initial_states: Optional[dict] = None):
+        if initial_states is not None:
+            for name, initial_state in initial_states.items():
+                if isinstance(initial_state, float):
+                    initial_state = np.array([initial_state])
+                var = StateVariable(initial_state)
+                self.state_vars[name] = var
 
     def attach_sim_objs(self, objs: Union['SimObject', list, tuple]):
         if isinstance(objs, SimObject):
@@ -208,11 +218,60 @@ class SimObject(object):
         for sim_obj in self.sim_objs:
             sim_obj.check_sim_clock()
 
+    def set_state(self, **kwargs) -> None:
+        """
+        :param kwargs: states
+        :return: None
+        """
+        if len(kwargs) > 0:
+            for name, state in kwargs.items():
+                self.state_vars[name].apply_state(state)
+
     @property
     def time(self) -> float:
         if self._sim_clock is None:
             raise NoSimClockError
         return self._sim_clock.time
+
+    def state(self, *args) -> Union[np.ndarray, Dict[str, np.ndarray]]:
+        if len(args) == 1:
+            return self.state_vars[args[0]].state
+        elif len(args) == 0:
+            return self._get_states()
+        else:
+            states = dict()
+            for name in args:
+                var = self.state_vars[name]
+                states[name] = var.state
+            return states
+
+    def _get_states(self) -> Dict[str, np.ndarray]:
+        states = dict()
+        for name, var in self.state_vars.items():
+            states[name] = var.state
+        return states
+
+    def deriv(self, *args) -> Union[np.ndarray, Dict[str, np.ndarray]]:
+        if len(args) == 1:
+            return self.state_vars[args[0]].deriv
+        elif len(args) == 0:
+            return self._get_derivs()
+        else:
+            derivs = dict()
+            for name in args:
+                var = self.state_vars[name]
+                derivs[name] = var.deriv
+            return derivs
+
+    def _get_derivs(self) -> Dict[str, np.ndarray]:
+        derivs = dict()
+        for name, var in self.state_vars.items():
+            derivs[name] = var.deriv
+        return derivs
+
+    @property
+    def output(self) -> Union[None, np.ndarray, dict]:
+        return self._last_output
 
     def forward(self, *args, **kwargs):
         self._timer.forward()
@@ -227,17 +286,6 @@ class SimObject(object):
     def _forward(self, *args, **kwargs):
         return NotImplementedError
 
-    @property
-    def output(self) -> Union[None, np.ndarray, dict]:
-        return self._last_output
-
-    def history(self, *args):
-        """
-        :param args: variable names
-        :return:
-        """
-        return self._logger.get(*args)
-
     # to be implemented
     def _check_stop_condition(self) -> Optional[bool]:
         pass
@@ -249,6 +297,70 @@ class SimObject(object):
 
         to_stop = np.array(to_stop_list, dtype=bool).any()
         return to_stop
+
+    def history(self, *args):
+        """
+        :param args: variable names
+        :return:
+        """
+        return self._logger.get(*args)
+
+    # to be implemented
+    def report(self):
+        pass
+
+    def default_plot(self, show=False, var_keys=None, var_ind_dict=None, var_names_dict=None):
+        if var_keys is None:
+            var_keys = list(self._logger.keys())
+            var_keys.remove('t')
+        if var_ind_dict is None:
+            var_ind_dict = dict()
+        if var_names_dict is None:
+            var_names_dict = dict()
+
+        fig_axs = dict()
+        time_list = self.history('t')
+
+        for var_key in var_keys:
+            var_list = self.history(var_key)
+            if var_list.ndim == 1:
+                var_list = np.reshape(var_list, var_list.shape + (1, ))
+
+            if var_key in var_ind_dict:
+                ind = var_ind_dict[var_key]
+            else:
+                ind = list(range(var_list.shape[1]))
+
+            if var_key in var_names_dict:
+                names = var_names_dict[var_key]
+            else:
+                names = [var_key + "_" + str(k) for k in ind]
+
+            subplot_num = len(ind)
+            fig, ax = plt.subplots(subplot_num, 1)
+            fig_axs[var_key] = {
+                'fig': fig,
+                'ax': ax
+            }
+            for i in range(subplot_num):
+                if subplot_num == 1:
+                    ax_ = ax
+                else:
+                    ax_ = ax[i]
+                ax_.plot(time_list, var_list[:, ind[i]], label="Actual")
+                ax_.set_xlabel("Time (s)")
+                ax_.set_ylabel(names[i])
+                ax_.grid()
+                ax_.legend()
+            fig.suptitle(var_key)
+            fig.tight_layout()
+
+        if show:
+            plt.show()
+        else:
+            plt.draw()
+            plt.pause(0.01)
+        return fig_axs
 
     def save(self, h5file=None, data_group=''):
         data_group = data_group + '/' + self.name
