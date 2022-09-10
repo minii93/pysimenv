@@ -409,7 +409,171 @@ The following figure shows the simulation result.
 
 
 
-### Example 4: Cruise control of a vehicle using PI control
+### Example 4: Simulation of a projectile
+
+In this example, we will learn the following things.
+
+* Defining a dynamic system with multiple state variables.
+* Defining a stop condition for simulation.
+
+An object that is projected near the ground moves along a curved path under the action of gravity, which is called projectile motion. We examine the effect of air resistance to the projectile through numerical simulation.
+
+The equations of motion can be written as
+$$
+\begin{align*}
+\dot{p} &= v \\
+\dot{v} &= a_{\text{grav}} + a_{\text{air}}
+= \begin{bmatrix}
+0 \\ -g
+\end{bmatrix} - \mu \Vert v \Vert v
+\end{align*}
+$$
+where $p=[p_x\, p_{y}]^{T}$ is the position, $v=[v_{x}\, v_{y}]^{T}$ is the velocity, $g=9.807\,(\rm{m/s^2})$ is the gravitational acceleration, and $\mu$ is a constant related to air resistance. $\mu$ is determined by
+$$
+\mu = \frac{c\rho A}{2m}
+$$
+where $c$ is the drag coefficient, $\rho$ is the air density, $A$ is the cross sectional area of the projectile, and $m$ is the mass of the projectile. A parameter set of $c=0.6$, $\rho=1.204 \,(\rm{kg/m^3})$, $A=0.065 \,(\rm{m^2})$, and $m=0.056\, (\rm{kg})$ is used in the simulation, which approximately models the aerodynamic effect on the tennis ball. The resulting value of $\mu$ is $\mu=0.0214\, (\rm{m^{-1}})$.
+
+Import `DynObject` class from `pysimenv.core.base`.
+
+```python
+import numpy as np
+import matplotlib.pyplot as plt
+from pysimenv.core.base import DynSystem
+from pysimenv.core.simulator import Simulator
+```
+
+Define a class called `Projectile` that inherits `DynSystem`.
+
+```python
+class Projectile(DynSystem):
+    def __init__(self, p_0, v_0, mu=0.):
+        super(Projectile, self).__init__(initial_states={'p': p_0, 'v': v_0})
+        self.mu = mu
+```
+
+`Projectile` class is defined to have two state variables with keys `p` and `v`, and no input variables. The equations of motion is translated into `_deriv` method as
+
+```python
+    # implement
+    def _deriv(self, p, v):
+        p_dot = v.copy()
+        v_dot = np.array([0., -9.807]) - self.mu*np.linalg.norm(v)*v
+        return {'p': p_dot, 'v': v_dot}
+```
+
+We want to finish the simulation when an instance of `Projectile` reaches the ground ($p_y < 0$). Therefore, implement `_stop_condition` method as
+
+```python
+    # implement
+    def _check_stop_condition(self):
+        p_y = self.state('p')[1]
+        return p_y < 0.
+```
+
+Define a simulator and perform the numerical simulation in the main function. We perform the numerical simulation twice, one without considering any effect of the drag ($\mu=0$) and one with considering the effect of the drag ($\mu=0.0214$).
+
+```python
+def main():
+    mu_list = {'no_drag': 0., 'air': 0.0214}
+    data_list = dict()
+
+    theta_0 = np.deg2rad(30.)
+    p_0 = np.zeros(2)
+    v_0 = np.array([20.*np.cos(theta_0), 20.*np.sin(theta_0)])
+    for key, mu in mu_list.items():
+        projectile = Projectile(p_0=p_0, v_0=v_0, mu=mu)
+        simulator = Simulator(projectile)
+        simulator.propagate(dt=0.01, time=10., save_history=True)
+
+        data = projectile.history('t', 'p', 'v')
+        data_list[key] = data
+```
+
+After the simulation, the history of the time, position, and velocity is obtained by calling `history` method and passing the corresponding keys as arguments. Note that `history` method returns the data as a dictionary variable when more than one argument are passed.
+
+The entire code is written as
+
+```python
+import numpy as np
+import matplotlib.pyplot as plt
+from pysimenv.core.base import DynSystem
+from pysimenv.core.simulator import Simulator
+
+
+class Projectile(DynSystem):
+    def __init__(self, p_0, v_0, mu=0.):
+        super(Projectile, self).__init__(initial_states={'p': p_0, 'v': v_0})
+        self.mu = mu
+
+    # implement
+    def _deriv(self, p, v):
+        p_dot = v.copy()
+        v_dot = np.array([0., -9.807]) - self.mu*np.linalg.norm(v)*v
+        return {'p': p_dot, 'v': v_dot}
+
+    # implement
+    def _check_stop_condition(self):
+        p_y = self.state('p')[1]
+        return p_y < 0.
+
+
+def main():
+    mu_list = {'no_drag': 0., 'air': 0.0214}
+    data_list = dict()
+
+    theta_0 = np.deg2rad(30.)
+    p_0 = np.zeros(2)
+    v_0 = np.array([20.*np.cos(theta_0), 20.*np.sin(theta_0)])
+    for key, mu in mu_list.items():
+        projectile = Projectile(p_0=p_0, v_0=v_0, mu=mu)
+        simulator = Simulator(projectile)
+        simulator.propagate(dt=0.01, time=10., save_history=True)
+
+        data = projectile.history('t', 'p', 'v')
+        data_list[key] = data
+
+    color = {'no_drag': 'k', 'air': 'b'}
+    fig, ax = plt.subplots(3, 1)
+    for key in data_list.keys():
+        data = data_list[key]
+        ax[0].plot(data['p'][:, 0], data['p'][:, 1], color=color[key], label=key)
+        ax[1].plot(data['t'], data['v'][:, 0], color=color[key], label=key)
+        ax[2].plot(data['t'], data['v'][:, 1], color=color[key], label=key)
+
+    ax[0].set_xlabel("Distance (m)")
+    ax[0].set_ylabel("Height (m)")
+    ax[0].set_title("Trajectory")
+    ax[0].grid()
+    ax[0].legend()
+
+    ax[1].set_xlabel("Time (s)")
+    ax[1].set_ylabel("v_x (m/s)")
+    ax[1].set_title("Horizontal velocity")
+    ax[1].grid()
+    ax[1].legend()
+
+    ax[2].set_xlabel("Time (s)")
+    ax[2].set_ylabel("v_y (m/s)")
+    ax[2].set_title("Vertical velocity")
+    ax[2].grid()
+    ax[2].legend()
+    fig.tight_layout()
+    plt.show()
+
+
+if __name__ == "__main__":
+    main()
+
+```
+
+The following figures show the simulation result.
+
+<img src="figures/example_4_projectile.png" width=500px>
+
+
+
+### Example 5: Cruise control of a vehicle using PI control
 
 In this example, we will learn the following things.
 
@@ -688,7 +852,7 @@ if __name__ == "__main__":
 
 The following figures show the simulation result.
 
-<img src="figures/example_4_history.png" width=500px>
+<img src="figures/example_5_history.png" width=500px>
 
 The dotted line is for the case where $\omega_{0}=0.05$, the full line is for $\omega_{0}=0.1$, and the dashed line is for $\omega_{0}=0.2$.
 
