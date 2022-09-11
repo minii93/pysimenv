@@ -261,10 +261,11 @@ class PlanarMissile(PlanarVehicle):
 
 
 class PlanarMissileWithPitch(PlanarMissile):
-    def __init__(self, p_0: ArrayType, V_0: float, gamma_0: float, pitch_dyn: PitchDynLatAccel, name="missile"):
+    def __init__(self, p_0: ArrayType, V_0: float, gamma_0: float,
+                 pitch_dyn: PitchDynLatAccel, tau=0.5, name="missile"):
         super(PlanarMissileWithPitch, self).__init__(p_0, V_0, gamma_0, name=name)
         self.pitch_dyn = pitch_dyn
-        self.accel_dyn = FirstOrderLinSys(x_0=np.array([0.]), tau=0.5)
+        self.accel_dyn = FirstOrderLinSys(x_0=np.array([0.]), tau=tau)
         self._attach_sim_objs([self.pitch_dyn, self.accel_dyn])
 
     # override
