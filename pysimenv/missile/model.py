@@ -3,6 +3,7 @@ from typing import Union
 import numpy as np
 import matplotlib.pyplot as plt
 from pysimenv.core.base import SimObject, DynSystem, ArrayType
+from pysimenv.common.model import FirstOrderLinSys
 
 
 class PlanarKin(DynSystem):
@@ -59,31 +60,35 @@ class PitchDyn(DynSystem):
         self.M_delta = M_delta
 
     # implement
-    def _deriv(self, x, V_M: float, delta: float):
+    def _deriv(self, x, V: float, delta: float):
         alp, q = x[0], x[2]
-        alp_dot = q - (self.L_alp*alp + self.L_delta*delta)/V_M
+
+        alp_dot = q - (self.L_alp*alp + self.L_delta*delta) / V
         theta_dot = q
         q_dot = self.M_alp*alp + self.M_q*q + self.M_delta*delta
-        return {'alp': alp_dot, 'theta': theta_dot, 'q': q_dot}
+        return {'x': np.array([alp_dot, theta_dot, q_dot])}
 
 
 class PitchDynLatAccel(DynSystem):
-    def __init__(self, x_0: ArrayType, L_alp, L_del, M_alp, M_q, M_del):
+    """
+    x = [alp, theta, q]
+    """
+    def __init__(self, x_0: ArrayType, L_alp, L_delta, M_alp, M_q, M_delta):
         super(PitchDynLatAccel, self).__init__(initial_states={'x': x_0}, name="pitch_dyn")
         self.L_alp = L_alp
-        self.L_del = L_del
+        self.L_delta = L_delta
         self.M_alp = M_alp
         self.M_q = M_q
-        self.M_del = M_del
+        self.M_delta = M_delta
 
     # implement
-    def _deriv(self, x, V_M: float, a_L: float):
+    def _deriv(self, x, V: float, a_L: float):
         alp, q = x[0], x[2]
 
-        alp_dot = q - 1./V_M*a_L*np.cos(alp)
+        alp_dot = q - 1. / V * a_L * np.cos(alp)
         theta_dot = q
-        q_dot = (self.M_alp - self.M_del*self.L_alp/self.L_del)*alp + self.M_q*q + self.M_del/self.L_del*a_L
-        return {'alp': alp_dot, 'theta': theta_dot, 'q': q_dot}
+        q_dot = (self.M_alp - self.M_delta * self.L_alp / self.L_delta) * alp + self.M_q * q + self.M_delta / self.L_delta * a_L
+        return {'x': np.array([alp_dot, theta_dot, q_dot])}
 
     @property
     def alp(self) -> float:
@@ -104,6 +109,25 @@ class PitchDynLatAccel(DynSystem):
 
     def body_to_vel(self, v: np.ndarray) -> np.ndarray:
         return self.R_vb.dot(v)
+
+    def plot(self, show=False):
+        t = self.history('t')
+        x = np.rad2deg(self.history('x'))
+        y_labels = ['alpha (deg)', 'theta (deg)', 'q (deg/s)']
+
+        fig, ax = plt.subplots(3, 1)
+        for i in range(3):
+            ax[i].plot(t, x[:, i])
+            ax[i].set_xlabel("Time (s)")
+            ax[i].set_ylabel(y_labels[i])
+            ax[i].grid()
+        fig.tight_layout()
+
+        if show:
+            plt.show()
+        else:
+            plt.draw()
+            plt.pause(0.01)
 
 
 class PlanarVehicle(SimObject):
@@ -129,7 +153,7 @@ class PlanarVehicle(SimObject):
         return self.kin.gamma
 
     def _forward(self, *args, **kwargs) -> Union[None, np.ndarray, dict]:
-        raise NotImplementedError
+        pass
 
     def plot_path(self, fig_ax=None, label="vehicle", show=False):
         if fig_ax is None:
@@ -176,7 +200,7 @@ class PlanarMissile(PlanarVehicle):
     def _forward(self, a_M_cmd: float):
         a = self.kin.vel_to_inertial(np.array([0., a_M_cmd]))
         self.kin.forward(a=a)
-        self._logger.append(t=self.time, V=self.kin.V, gamma=self.kin.gamma)
+        self._logger.append(t=self.time, V=self.V, gamma=self.gamma)
 
     # implement
     def _check_stop_condition(self) -> bool:
@@ -240,7 +264,8 @@ class PlanarMissileWithPitch(PlanarMissile):
     def __init__(self, p_0: ArrayType, V_0: float, gamma_0: float, pitch_dyn: PitchDynLatAccel, name="missile"):
         super(PlanarMissileWithPitch, self).__init__(p_0, V_0, gamma_0, name=name)
         self.pitch_dyn = pitch_dyn
-        self._attach_sim_objs([self.pitch_dyn])
+        self.accel_dyn = FirstOrderLinSys(x_0=np.array([0.]), tau=0.5)
+        self._attach_sim_objs([self.pitch_dyn, self.accel_dyn])
 
     # override
     def look_angle(self, lam: float):
@@ -248,12 +273,14 @@ class PlanarMissileWithPitch(PlanarMissile):
         return sigma
 
     def _forward(self, a_M_cmd: float):
-        a_L = a_M_cmd/np.cos(self.pitch_dyn.alp)
-        self.pitch_dyn.forward(a_L=a_L)
+        a_L_cmd = a_M_cmd/np.cos(self.pitch_dyn.alp)
+        a_L = self.accel_dyn.forward(u=np.array([a_L_cmd]))
+        self.pitch_dyn.forward(V=self.V, a_L=a_L)
 
         a = self.pitch_dyn.body_to_vel(np.array([0., a_L]))
         a = self.kin.vel_to_inertial(a)
         self.kin.forward(a=a)
+        self._logger.append(t=self.time, V=self.V, gamma=self.gamma)
 
 
 class PlanarMovingTarget(PlanarVehicle):

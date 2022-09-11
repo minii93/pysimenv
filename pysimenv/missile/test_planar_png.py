@@ -1,38 +1,23 @@
 import numpy as np
-import matplotlib.pyplot as plt
 from pysimenv.core.simulator import Simulator
-from pysimenv.missile.model import PlanarMissile2dof, PlanarNonManVehicle2dof
+from pysimenv.missile.model import PlanarMissile, PlanarMovingTarget
 from pysimenv.missile.guidance import PurePNG2dim
 from pysimenv.missile.engagement import Engagement2dim
 
 
 def main():
-    print("== Two dimensional pure PNG engagement for a stationary target ==")
-    missile = PlanarMissile2dof(
-        initial_state=[-5000., 3000., 300., np.deg2rad(-15.)]
-    )
-    target = PlanarNonManVehicle2dof(
-        initial_state=[0., 0., 20., 0.]
-    )
-    missile.name = "missile"
-    target.name = "target"
+    missile = PlanarMissile(p_0=[-5000., 3000.], V_0=300., gamma_0=np.deg2rad(-15.), name="missile")
+    target = PlanarMovingTarget(p_0=[0., 0.], V_0=20., gamma_0=0., name="target")
 
-    # Method 1
     guidance = PurePNG2dim(N=3.0)
     model = Engagement2dim(missile, target, guidance)
     simulator = Simulator(model)
     simulator.propagate(dt=0.01, time=30., save_history=True)
 
-    model.plot_path()
-    model.plot_rel_kin()
-    model.report()
-    model.report_miss_distance()
-    model.report_impact_angle()
-    model.report_impact_time()
     simulator.save_sim_log('./data/planar_png/')
-    # simulator.load_sim_log('./data/planar_png/')
-
-    plt.show()
+    model.report()
+    model.plot_path()
+    model.plot_rel_kin(show=True)
 
 
 if __name__ == "__main__":

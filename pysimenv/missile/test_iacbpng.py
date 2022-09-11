@@ -1,7 +1,6 @@
 import numpy as np
-import matplotlib.pyplot as plt
 from pysimenv.core.simulator import Simulator
-from pysimenv.missile.model import PlanarMissile2dof, PlanarNonManVehicle2dof
+from pysimenv.missile.model import PlanarMissile, PlanarMovingTarget
 from pysimenv.missile.guidance import IACBPNG
 from pysimenv.missile.engagement import Engagement2dim
 
@@ -10,14 +9,8 @@ def main():
     theta_M_0 = np.deg2rad(30.)
     theta_T = 0.
 
-    missile = PlanarMissile2dof(
-        [0., 0., 200., theta_M_0]
-    )
-    target = PlanarNonManVehicle2dof(
-        [3000., 0., 30., theta_T]
-    )
-    missile.name = "missile"
-    target.name = "target"
+    missile = PlanarMissile(p_0=[0., 0.], V_0=200., gamma_0=theta_M_0, name="missile")
+    target = PlanarMovingTarget(p_0=[3000., 0.], V_0=30., gamma_0=theta_T, name="target")
 
     theta_M_f = np.deg2rad(-40.)
     sigma_max = np.deg2rad(45.)
@@ -27,16 +20,11 @@ def main():
     simulator = Simulator(model)
     simulator.propagate(dt=0.01, time=30., save_history=True)
 
-    model.plot_path()
-    model.plot_rel_kin()
     model.report()
-    model.report_miss_distance()
-    model.report_impact_angle()
-    model.report_impact_time()
     bpng.plot_bias()
     bpng.plot_bias_integral()
-
-    plt.show()
+    model.plot_path()
+    model.plot_rel_kin(show=True)
 
 
 if __name__ == "__main__":
