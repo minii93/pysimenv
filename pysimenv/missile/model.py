@@ -7,7 +7,7 @@ from pysimenv.common.util import wrap_to_pi
 
 
 class PlanarKin(DynSystem):
-    def __init__(self, p_0: np.ndarray, v_0: np.ndarray):
+    def __init__(self, p_0: ArrayType, v_0: ArrayType):
         super(PlanarKin, self).__init__(initial_states={'p': p_0, 'v': v_0})
 
     # implement
@@ -51,7 +51,7 @@ class PlanarKin(DynSystem):
 
 
 class PitchDyn(DynSystem):
-    def __init__(self, x_0: np.ndarray, L_alp, L_delta, M_alp, M_q, M_delta):
+    def __init__(self, x_0: ArrayType, L_alp, L_delta, M_alp, M_q, M_delta):
         super(PitchDyn, self).__init__(initial_states={'x': x_0})
         self.L_alp = L_alp
         self.L_delta = L_delta
@@ -69,7 +69,7 @@ class PitchDyn(DynSystem):
 
 
 class PitchDynLatAccel(DynSystem):
-    def __init__(self, x_0: np.ndarray, L_alp, L_del, M_alp, M_q, M_del):
+    def __init__(self, x_0: ArrayType, L_alp, L_del, M_alp, M_q, M_del):
         super(PitchDynLatAccel, self).__init__(initial_states={'x': x_0})
         self.L_alp = L_alp
         self.L_del = L_del
@@ -104,6 +104,11 @@ class PitchDynLatAccel(DynSystem):
 
 
 class PlanarVehicle(SimObject):
+    def __init__(self, kin: PlanarKin):
+        super(PlanarVehicle, self).__init__()
+        self.kin = kin
+        self._attach_sim_objs([self.kin])
+
     # to be implemented
     @property
     def p(self) -> np.ndarray:
@@ -115,13 +120,36 @@ class PlanarVehicle(SimObject):
     def _forward(self, *args, **kwargs) -> Union[None, np.ndarray, dict]:
         raise NotImplementedError
 
+    def plot_path(self, fig_ax=None, label='vehicle', show=False):
+        if fig_ax is None:
+            fig, ax = plt.subplots()
+            ax.set_xlabel("p_x (m)")
+            ax.set_ylabel("p_y (m)")
+            ax.set_aspect('equal')
+            ax.set_title("Flight Path")
+            ax.grid()
+        else:
+            fig = fig_ax['fig']
+            ax = fig_ax['ax']
+
+        p = self.kin.history('p')
+        ax.plot(p[:, 0], p[:, 1], label=label)
+        ax.legend()
+        fig.tight_layout()
+
+        if show:
+            plt.show()
+        else:
+            plt.draw()
+            plt.pause(0.01)
+        return {'fig': fig, 'ax': ax}
+
 
 class PlanarMissile(PlanarVehicle):
-    def __init__(self, p_0: np.ndarray, V_0: float, gamma_0: float):
-        super(PlanarMissile, self).__init__()
+    def __init__(self, p_0: ArrayType, V_0: float, gamma_0: float):
         v_0 = np.array([V_0*np.cos(gamma_0), V_0*np.sin(gamma_0)])
-        self.kin = PlanarKin(p_0=p_0, v_0=v_0)
-        self._attach_sim_objs([self.kin])
+        kin = PlanarKin(p_0=p_0, v_0=v_0)
+        super(PlanarMissile, self).__init__(kin=kin)
 
     # implement
     @property
@@ -135,10 +163,33 @@ class PlanarMissile(PlanarVehicle):
     def _forward(self, a_M_cmd: float):
         a = self.kin.vel_to_inertial(np.array([0., a_M_cmd]))
         self.kin.forward(a=a)
+        self._logger.append(V=self.kin.V, gamma=self.kin.gamma)
+
+    def plot_kin(self, show=False):
+        t = self.kin.history('t')
+        data = [self.kin.history('p')[:, 0],
+                self.kin.history('p')[:, 1],
+                self.history('V'),
+                np.rad2deg(self.history('gamma'))]
+        labels = ['p_x', 'p_y', 'V', 'gamma']
+
+        fig, ax = plt.subplots(4, 1)
+        for i in range(4):
+            ax[i].plot(t, data[i], label=labels[i])
+            ax[i].set_xlabel("Time (s)")
+            ax[i].set_ylabel(labels[i])
+            ax[i].grid()
+        fig.tight_layout()
+
+        if show:
+            plt.show()
+        else:
+            plt.draw()
+            plt.pause(0.01)
 
 
 class PlanarMissileWithPitch(PlanarMissile):
-    def __init__(self, p_0: np.ndarray, V_0: float, gamma_0: float, pitch_dyn: PitchDynLatAccel):
+    def __init__(self, p_0: ArrayType, V_0: float, gamma_0: float, pitch_dyn: PitchDynLatAccel):
         super(PlanarMissileWithPitch, self).__init__(p_0, V_0, gamma_0)
         self.pitch_dyn = pitch_dyn
         self._attach_sim_objs([self.pitch_dyn])
@@ -153,10 +204,10 @@ class PlanarMissileWithPitch(PlanarMissile):
 
 
 class PlanarMovingTarget(PlanarVehicle):
-    def __init__(self, p_0: np.ndarray, V_0: np.ndarray, gamma_0: np.ndarray):
-        super(PlanarMovingTarget, self).__init__()
+    def __init__(self, p_0: ArrayType, V_0: float, gamma_0: float):
         v_0 = np.array([V_0*np.cos(gamma_0), V_0*np.sin(gamma_0)])
-        self.kin = PlanarKin(p_0=p_0, v_0=v_0)
+        kin = PlanarKin(p_0=p_0, v_0=v_0)
+        super(PlanarMovingTarget, self).__init__(kin=kin)
         self._attach_sim_objs([self.kin])
 
     # implement
