@@ -1,7 +1,175 @@
+from typing import Union, Optional
+
 import numpy as np
 import matplotlib.pyplot as plt
-from pysimenv.core.base import DynSystem, ArrayType
+from pysimenv.core.base import SimObject, DynSystem, ArrayType
 from pysimenv.common.util import wrap_to_pi
+
+
+class PlanarKin(DynSystem):
+    def __init__(self, p_0: np.ndarray, v_0: np.ndarray):
+        super(PlanarKin, self).__init__(initial_states={'p': p_0, 'v': v_0})
+
+    # implement
+    def _deriv(self, p, v, a: np.ndarray):
+        p_dot = v.copy()
+        v_dot = a.copy()
+        return {'p': p_dot, 'v': v_dot}
+
+    @property
+    def p(self) -> np.ndarray:
+        return self.state('p').copy()
+
+    @property
+    def v(self) -> np.ndarray:
+        return self.state('v').copy()
+
+    @property
+    def V(self) -> float:
+        v = self.state('v')
+        return np.linalg.norm(v)
+
+    @property
+    def gamma(self) -> float:
+        v = self.state('v')
+        return np.arctan2(v[1], v[0])
+
+    @property
+    def R_iv(self) -> np.ndarray:
+        c_gamma = np.cos(self.gamma)
+        s_gamma = np.sin(self.gamma)
+        return np.array([
+            [c_gamma, -s_gamma],
+            [s_gamma, c_gamma]
+        ])
+
+    def vel_to_inertial(self, v: np.ndarray) -> np.ndarray:
+        return self.R_iv.dot(v)
+
+    def inertial_to_vel(self, v: np.ndarray) -> np.ndarray:
+        return self.R_iv.transpose().dot(v)
+
+
+class PitchDyn(DynSystem):
+    def __init__(self, x_0: np.ndarray, L_alp, L_delta, M_alp, M_q, M_delta):
+        super(PitchDyn, self).__init__(initial_states={'x': x_0})
+        self.L_alp = L_alp
+        self.L_delta = L_delta
+        self.M_alp = M_alp
+        self.M_q = M_q
+        self.M_delta = M_delta
+
+    # implement
+    def _deriv(self, x, V_M: float, delta: float):
+        alp, q = x[0], x[2]
+        alp_dot = q - (self.L_alp*alp + self.L_delta*delta)/V_M
+        theta_dot = q
+        q_dot = self.M_alp*alp + self.M_q*q + self.M_delta*delta
+        return {'alp': alp_dot, 'theta': theta_dot, 'q': q_dot}
+
+
+class PitchDynLatAccel(DynSystem):
+    def __init__(self, x_0: np.ndarray, L_alp, L_del, M_alp, M_q, M_del):
+        super(PitchDynLatAccel, self).__init__(initial_states={'x': x_0})
+        self.L_alp = L_alp
+        self.L_del = L_del
+        self.M_alp = M_alp
+        self.M_q = M_q
+        self.M_del = M_del
+
+    # implement
+    def _deriv(self, x, V_M: float, a_L: float):
+        alp, q = x[0], x[2]
+
+        alp_dot = q - 1./V_M*a_L*np.cos(alp)
+        theta_dot = q
+        q_dot = (self.M_alp - self.M_del*self.L_alp/self.L_del)*alp + self.M_q*q + self.M_del/self.L_del*a_L
+        return {'alp': alp_dot, 'theta': theta_dot, 'q': q_dot}
+
+    @property
+    def alp(self) -> float:
+        return self.state('x')[0]
+
+    @property
+    def R_vb(self) -> np.ndarray:
+        c_alp = np.cos(self.alp)
+        s_alp = np.sin(self.alp)
+        return np.array([
+            [c_alp, -s_alp],
+            [s_alp, c_alp]
+        ])
+
+    def body_to_vel(self, v: np.ndarray) -> np.ndarray:
+        return self.R_vb.dot(v)
+
+
+class PlanarVehicle(SimObject):
+    # to be implemented
+    @property
+    def p(self) -> np.ndarray:
+        raise NotImplementedError
+
+    def v(self) -> np.ndarray:
+        raise NotImplementedError
+
+    def _forward(self, *args, **kwargs) -> Union[None, np.ndarray, dict]:
+        raise NotImplementedError
+
+
+class PlanarMissile(PlanarVehicle):
+    def __init__(self, p_0: np.ndarray, V_0: float, gamma_0: float):
+        super(PlanarMissile, self).__init__()
+        v_0 = np.array([V_0*np.cos(gamma_0), V_0*np.sin(gamma_0)])
+        self.kin = PlanarKin(p_0=p_0, v_0=v_0)
+        self._attach_sim_objs([self.kin])
+
+    # implement
+    @property
+    def p(self):
+        return self.kin.p
+
+    @property
+    def v(self):
+        return self.kin.v
+
+    def _forward(self, a_M_cmd: float):
+        a = self.kin.vel_to_inertial(np.array([0., a_M_cmd]))
+        self.kin.forward(a=a)
+
+
+class PlanarMissileWithPitch(PlanarMissile):
+    def __init__(self, p_0: np.ndarray, V_0: float, gamma_0: float, pitch_dyn: PitchDynLatAccel):
+        super(PlanarMissileWithPitch, self).__init__(p_0, V_0, gamma_0)
+        self.pitch_dyn = pitch_dyn
+        self._attach_sim_objs([self.pitch_dyn])
+
+    def _forward(self, a_M_cmd: float):
+        a_L = a_M_cmd/np.cos(self.pitch_dyn.alp)
+        self.pitch_dyn.forward(a_L=a_L)
+
+        a = self.pitch_dyn.body_to_vel(a_L)
+        a = self.kin.vel_to_inertial(a)
+        self.kin.forward(a=a)
+
+
+class PlanarMovingTarget(PlanarVehicle):
+    def __init__(self, p_0: np.ndarray, V_0: np.ndarray, gamma_0: np.ndarray):
+        super(PlanarMovingTarget, self).__init__()
+        v_0 = np.array([V_0*np.cos(gamma_0), V_0*np.sin(gamma_0)])
+        self.kin = PlanarKin(p_0=p_0, v_0=v_0)
+        self._attach_sim_objs([self.kin])
+
+    # implement
+    @property
+    def p(self):
+        return self.kin.p
+
+    @property
+    def v(self):
+        return self.kin.v
+
+    def _forward(self):
+        self.kin.forward(a=np.zeros(2))
 
 
 class PlanarManVehicle2dof(DynSystem):
