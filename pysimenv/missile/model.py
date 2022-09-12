@@ -51,8 +51,10 @@ class PlanarKin(DynSystem):
 
 
 class PitchDyn(DynSystem):
-    def __init__(self, x_0: ArrayType, L_alp, L_delta, M_alp, M_q, M_delta):
+    def __init__(self, x_0: ArrayType, V, L_alp, L_delta, M_alp, M_q, M_delta, *args, **kwargs):
+        # x = [alp, theta, q]
         super(PitchDyn, self).__init__(initial_states={'x': x_0}, name="pitch_dyn")
+        self.V = V
         self.L_alp = L_alp
         self.L_delta = L_delta
         self.M_alp = M_alp
@@ -60,35 +62,18 @@ class PitchDyn(DynSystem):
         self.M_delta = M_delta
 
     # implement
-    def _deriv(self, x, V: float, delta: float):
+    def _deriv(self, x, delta: float):
         alp, q = x[0], x[2]
 
-        alp_dot = q - (self.L_alp*alp + self.L_delta*delta) / V
+        alp_dot = q - 1./self.V*(self.L_alp*alp + self.L_delta*delta)
         theta_dot = q
         q_dot = self.M_alp*alp + self.M_q*q + self.M_delta*delta
+
         return {'x': np.array([alp_dot, theta_dot, q_dot])}
-
-
-class PitchDynLatAccel(DynSystem):
-    """
-    x = [alp, theta, q]
-    """
-    def __init__(self, x_0: ArrayType, L_alp, L_delta, M_alp, M_q, M_delta):
-        super(PitchDynLatAccel, self).__init__(initial_states={'x': x_0}, name="pitch_dyn")
-        self.L_alp = L_alp
-        self.L_delta = L_delta
-        self.M_alp = M_alp
-        self.M_q = M_q
-        self.M_delta = M_delta
 
     # implement
-    def _deriv(self, x, V: float, a_L: float):
-        alp, q = x[0], x[2]
-
-        alp_dot = q - 1. / V * a_L * np.cos(alp)
-        theta_dot = q
-        q_dot = (self.M_alp - self.M_delta * self.L_alp / self.L_delta) * alp + self.M_q * q + self.M_delta / self.L_delta * a_L
-        return {'x': np.array([alp_dot, theta_dot, q_dot])}
+    def _output(self):
+        return self.state('x')
 
     @property
     def alp(self) -> float:
@@ -107,17 +92,24 @@ class PitchDynLatAccel(DynSystem):
             [s_alp, c_alp]
         ])
 
+    def lift_accel(self, delta):
+        return self.L_alp*self.alp + self.L_delta*delta
+
     def body_to_vel(self, v: np.ndarray) -> np.ndarray:
         return self.R_vb.dot(v)
 
     def plot(self, show=False):
         t = self.history('t')
-        x = np.rad2deg(self.history('x'))
-        y_labels = ['alpha (deg)', 'theta (deg)', 'q (deg/s)']
+        data = np.hstack((
+            np.rad2deg(self.history('x')),
+            np.expand_dims(np.rad2deg(self.history('delta')), axis=1)
+        ))
 
-        fig, ax = plt.subplots(3, 1)
-        for i in range(3):
-            ax[i].plot(t, x[:, i])
+        y_labels = ['alpha (deg)', 'theta (deg)', 'q (deg/s)', 'delta (deg)']
+
+        fig, ax = plt.subplots(4, 1)
+        for i in range(4):
+            ax[i].plot(t, data[:, i])
             ax[i].set_xlabel("Time (s)")
             ax[i].set_ylabel(y_labels[i])
             ax[i].grid()
@@ -262,11 +254,12 @@ class PlanarMissile(PlanarVehicle):
 
 class PlanarMissileWithPitch(PlanarMissile):
     def __init__(self, p_0: ArrayType, V_0: float, gamma_0: float,
-                 pitch_dyn: PitchDynLatAccel, tau=0.5, name="missile"):
+                 pitch_dyn: PitchDyn, pitch_ap: SimObject, tau, name="missile"):
         super(PlanarMissileWithPitch, self).__init__(p_0, V_0, gamma_0, name=name)
         self.pitch_dyn = pitch_dyn
-        self.accel_dyn = FirstOrderLinSys(x_0=np.array([0.]), tau=tau)
-        self._attach_sim_objs([self.pitch_dyn, self.accel_dyn])
+        self.act_dyn = FirstOrderLinSys(x_0=np.array([0.]), tau=tau)
+        self.pitch_ap = pitch_ap
+        self._attach_sim_objs([self.pitch_dyn, self.act_dyn, self.pitch_ap])
 
     # override
     def look_angle(self, lam: float):
@@ -274,9 +267,14 @@ class PlanarMissileWithPitch(PlanarMissile):
         return sigma
 
     def _forward(self, a_M_cmd: float):
-        a_L_cmd = a_M_cmd/np.cos(self.pitch_dyn.alp)
-        a_L = self.accel_dyn.forward(u=np.array([a_L_cmd]))
-        self.pitch_dyn.forward(V=self.V, a_L=a_L)
+        a_L_c = a_M_cmd  # approximation
+        delta = self.act_dyn.output
+        a_L = self.pitch_dyn.lift_accel(delta)
+        x_p = self.pitch_dyn.output
+        delta_c = self.pitch_ap.forward(a_L=a_L, q=x_p[2], delta=delta, a_L_c=a_L_c)
+
+        self.act_dyn.forward(u=np.array([delta_c]))
+        self.pitch_dyn.forward(delta=delta)
 
         a = self.pitch_dyn.body_to_vel(np.array([0., a_L]))
         a = self.kin.vel_to_inertial(a)
