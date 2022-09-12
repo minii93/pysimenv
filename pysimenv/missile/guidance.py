@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from typing import Union
 from pysimenv.core.base import SimObject
-from pysimenv.missile.model import PlanarManVehicle2dof
+from pysimenv.missile.model import PlanarMissile, PlanarVehicle
 from pysimenv.missile.util import RelKin2dim
 
 
@@ -11,7 +11,7 @@ class Guidance2dim(SimObject):
         super(Guidance2dim, self).__init__(interval=interval)
 
     # to be implemented
-    def _forward(self, missile: PlanarManVehicle2dof, target: PlanarManVehicle2dof, rel_kin: RelKin2dim) -> float:
+    def _forward(self, missile: PlanarMissile, target: PlanarVehicle, rel_kin: RelKin2dim) -> float:
         raise NotImplementedError
 
 
@@ -21,15 +21,15 @@ class PurePNG2dim(Guidance2dim):
         self.N = N
 
     # implement
-    def _forward(self, missile: PlanarManVehicle2dof, target: PlanarManVehicle2dof, rel_kin: RelKin2dim) -> float:
+    def _forward(self, missile: PlanarMissile, target: PlanarVehicle, rel_kin: RelKin2dim) -> float:
         """
         :return: acceleration command a_y_cmd
         """
-        V_M = missile.V  # speed of the missile
+        V_M = missile.kin.V  # speed of the missile
         omega = rel_kin.omega  # LOS rate
 
-        a_y_cmd = self.N*V_M*omega
-        return a_y_cmd
+        a_M_cmd = self.N*V_M*omega
+        return a_M_cmd
 
 
 class IACBPNG(Guidance2dim):
@@ -65,11 +65,11 @@ class IACBPNG(Guidance2dim):
         B_ref = theta_M_f_bar - theta_M_0_bar - N*lam_f_bar
         return B_ref
 
-    def _forward(self, missile: PlanarManVehicle2dof, target: PlanarManVehicle2dof, rel_kin: RelKin2dim) -> float:
+    def _forward(self, missile: PlanarMissile, target: PlanarVehicle, rel_kin: RelKin2dim) -> float:
         V_M = missile.V
         V_T = target.V
         omega = rel_kin.omega
-        sigma = rel_kin.sigma
+        sigma = missile.look_angle(rel_kin.lam)
 
         B_ref = IACBPNG.reference_value(
             self.theta_M_0, self.theta_M_f, self.theta_T, self.lam_0, self.N, V_M, V_T)

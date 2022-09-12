@@ -1,8 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from typing import Tuple
 from pysimenv.core.base import SimObject
-from pysimenv.missile.model import PlanarManVehicle2dof
+from pysimenv.missile.model import PlanarMissile, PlanarVehicle
 from pysimenv.missile.guidance import Guidance2dim
 from pysimenv.missile.util import RelKin2dim, CloseDistCond, closest_instant, lin_interp
 
@@ -12,12 +11,12 @@ class Engagement2dim(SimObject):
     MISSILE_STOP = 2
     IS_OUT_OF_VIEW = 3
 
-    def __init__(self, missile: PlanarManVehicle2dof, target: PlanarManVehicle2dof, guidance: Guidance2dim):
+    def __init__(self, missile: PlanarMissile, target: PlanarVehicle, guidance: Guidance2dim):
         super(Engagement2dim, self).__init__()
         self.missile = missile
         self.target = target
         self.guidance = guidance
-        self.rel_kin = RelKin2dim()
+        self.rel_kin = RelKin2dim(missile, target)
         self.close_dist_cond = CloseDistCond(r_threshold=10.0)
 
         self._attach_sim_objs([self.missile, self.target, self.guidance])
@@ -28,28 +27,22 @@ class Engagement2dim(SimObject):
         self.close_dist_cond.reset()
 
     # implement
-    def _initialize(self):
-        x_M = self.missile.state('x')
-        x_T = self.target.state('x')
-        self.rel_kin.evaluate(x_M, x_T)
-
-    # implement
     def _forward(self):
-        x_M = self.missile.state('x')
-        x_T = self.target.state('x')
-        self.rel_kin.evaluate(x_M, x_T)
-        self.close_dist_cond.evaluate(self.rel_kin.r)
+        self.rel_kin.forward()
+        self.close_dist_cond.forward(r=self.rel_kin.r)
+        lam = self.rel_kin.lam
+        sigma = self.missile.look_angle(lam)
 
-        a_y_cmd = self.guidance.forward(self.missile, self.target, self.rel_kin)
-        self.missile.forward(a_M_cmd=np.array([0., a_y_cmd]))
+        a_M_cmd = self.guidance.forward(self.missile, self.target, self.rel_kin)
+        self.missile.forward(a_M_cmd=a_M_cmd)
         self.target.forward()
 
         self._logger.append(
-            t=self.time, r=self.rel_kin.r, sigma=self.rel_kin.sigma, lam=self.rel_kin.lam, omega=self.rel_kin.omega
+            t=self.time, r=self.rel_kin.r, sigma=sigma, lam=lam, omega=self.rel_kin.omega
         )
 
     # implement
-    def _check_stop_condition(self) -> Tuple[bool, int]:
+    def _check_stop_condition(self) -> bool:
         to_stop = False
 
         missile_stop = self.missile.check_stop_condition()
@@ -66,39 +59,24 @@ class Engagement2dim(SimObject):
     def intercepted(self) -> bool:
         return self.close_dist_cond.check()
 
-    def state_on_closest_instant(self):
-        t = self.missile.history('t')
-        x_M = self.missile.history('x')
-        x_T = self.target.history('x')
+    def get_info(self) -> dict:
+        p_M = self.missile.kin.history('p')
+        p_T = self.target.kin.history('p')
+        ind_c, xi_c = closest_instant(p_M, p_T)
 
-        p_M = x_M[:, 0:2]
-        p_T = x_T[:, 0:2]
-        index_close, xi_close = closest_instant(p_M, p_T)
-
-        t_close = lin_interp(t[index_close], t[index_close + 1], xi_close)
-        x_M_close = lin_interp(x_M[index_close], x_M[index_close + 1], xi_close)
-        x_T_close = lin_interp(x_T[index_close], x_T[index_close + 1], xi_close)
-
-        return t_close, x_M_close, x_T_close
-
-    def miss_distance(self) -> float:
-        _, x_M_c, x_T_c = self.state_on_closest_instant()
-
-        p_M_c = x_M_c[0:2]
-        p_T_c = x_T_c[0:2]
-
+        p_M_c = lin_interp(p_M[ind_c], p_M[ind_c + 1], xi_c)
+        p_T_c = lin_interp(p_T[ind_c], p_T[ind_c + 1], xi_c)
         d_miss = np.linalg.norm(p_M_c - p_T_c)
-        return d_miss
 
-    def impact_angle(self) -> float:
-        _, x_M_c, x_T_c = self.state_on_closest_instant()
-        gamma_M_c = x_M_c[3]
-        gamma_T_c = x_T_c[3]
-        return gamma_M_c - gamma_T_c
+        gamma_M = self.missile.history('gamma')
+        gamma_T = self.target.history('gamma')
+        gamma_M_c = lin_interp(gamma_M[ind_c], gamma_M[ind_c + 1], xi_c)
+        gamma_T_c = lin_interp(gamma_T[ind_c], gamma_T[ind_c + 1], xi_c)
+        gamma_imp = gamma_M_c - gamma_T_c
 
-    def impact_time(self) -> float:
-        t_c, _, _ = self.state_on_closest_instant()
-        return t_c
+        t = self.missile.history('t')
+        t_imp = lin_interp(t[ind_c], t[ind_c + 1], xi_c)
+        return {'miss_distance': d_miss, 'impact_angle': gamma_imp, 'impact_time': t_imp}
 
     def report(self):
         self.missile.report()
@@ -107,68 +85,16 @@ class Engagement2dim(SimObject):
         else:
             print("[engagement] The target has been missed!")
 
-        _, x_M_c, x_T_c = self.state_on_closest_instant()
+        info = self.get_info()
+        print("[engagement] Miss distance: {:.6f} (m)".format(info['miss_distance']))
+        print("[engagement] Impact angle: {:.2f} (deg)".format(np.rad2deg(info['impact_angle'])))
+        print("[engagement] Impact time: {:.2f} (s) \n".format(info['impact_time']))
 
-        print("[engagement] Missile state on the closest instant: {:.2f}(m), {:.2f}(m), {:.2f}(m/s), {:.2f}(deg) ".
-              format(x_M_c[0], x_M_c[1], x_M_c[2], np.rad2deg(x_M_c[3]))
-              )
-        print("[engagement] Target state on the closest instant: {:.2f}(m), {:.2f}(m), {:.2f}(m/s), {:.2f}(deg) \n".
-              format(x_T_c[0], x_T_c[1], x_T_c[2], np.rad2deg(x_T_c[3]))
-              )
+    def plot_path(self, show=False):
+        fig_ax = self.missile.plot_path(label='missile')
+        self.target.plot_path(fig_ax=fig_ax, label='target', show=show)
 
-    def report_miss_distance(self):
-        d_miss = self.miss_distance()
-        print("[engagement] Miss distance: {:.6f} (m)".format(d_miss))
-
-    def report_impact_angle(self):
-        gamma_imp = self.impact_angle()
-        print("[engagement] Impact angle: {:.2f} (deg)".format(np.rad2deg(gamma_imp)))
-
-    def report_impact_time(self):
-        t_imp = self.impact_time()
-        print("[engagement] Impact time: {:.2f} (s)".format(t_imp))
-
-    def plot_path(self):
-        fig_axs = dict()
-
-        fig_ax = self.missile.plot_path()
-        self.target.plot_path(fig_ax)
-
-        fig1, ax1 = fig_ax['fig'], fig_ax['ax']
-        fig1.suptitle("2-dim flight path")
-        fig_axs['path'] = {'fig': fig1, 'ax': ax1}
-
-        return fig_axs
-
-    def plot_zem(self):
-        fig_axs = dict()
-
-        relKin = RelKin2dim()
-        t = self.missile.history('t')
-        x_M = self.missile.history('x')
-        x_T = self.target.history('x')
-
-        zem = []
-        for i in range(x_M.shape[0]):
-            x_M_ = x_M[i, :]
-            x_T_ = x_T[i, :]
-            relKin.evaluate(x_M_, x_T_)
-
-            zem.append(relKin.zem)
-        zem = np.array(zem)
-
-        fig, ax = plt.subplots()
-        ax.set_title("ZEM")
-        ax.plot(t[:-1], zem[:-1], label="ZEM")
-        ax.set_xlabel("Time (s)")
-        ax.set_ylabel("ZEM (m)")
-        ax.grid()
-        ax.legend()
-
-        fig_axs['Rel. Kin. add.'] = {'fig': fig, 'ax': ax}
-        return fig_axs
-
-    def plot_rel_kin(self):
+    def plot_rel_kin(self, show=False):
         fig_axs = dict()
 
         t = self.history('t')
@@ -203,6 +129,12 @@ class Engagement2dim(SimObject):
         ax[3].grid()
         fig.tight_layout()
         fig_axs['Rel. Kin.'] = {'fig': fig, 'ax': ax}
+
+        if show:
+            plt.show()
+        else:
+            plt.draw()
+            plt.pause(0.01)
 
         return fig_axs
 
