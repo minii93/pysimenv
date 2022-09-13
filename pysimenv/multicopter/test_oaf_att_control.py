@@ -33,7 +33,7 @@ class Model(SimObject):
         self.att_control = OAFAttControl(m=m, J=J, d_v=d_v, d_omega=d_omega,
                                          G=G, K_p=np.array([121., 121., 2.25]), K_d=np.array([22., 22., 3.]))
 
-        self._attach_sim_objs([
+        self._add_sim_objs([
             self.quadrotor_dyn, self.att_control
         ])
 

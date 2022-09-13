@@ -19,7 +19,7 @@ class Engagement2dim(SimObject):
         self.rel_kin = RelKin2dim(missile, target)
         self.close_dist_cond = CloseDistCond(r_threshold=10.0)
 
-        self._attach_sim_objs([self.missile, self.target, self.guidance])
+        self._add_sim_objs([self.missile, self.target, self.guidance])
 
     # override
     def _reset(self):

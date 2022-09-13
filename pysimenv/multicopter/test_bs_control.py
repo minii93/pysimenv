@@ -23,7 +23,7 @@ class Model(SimObject):
         alpha = np.array([16., 14., 16., 14., 16., 14., 2.5, 0.5, 2.5, 0.5, 2.5, 0.5])
         self.control = BSControl(m=m, J=J, alpha=alpha)
 
-        self._attach_sim_objs([self.quadrotor_dyn, self.control])
+        self._add_sim_objs([self.quadrotor_dyn, self.control])
 
     def forward(self):
         sigma_d = np.array([2., 2., -2., np.deg2rad(15.)])

@@ -20,7 +20,7 @@ class Model(SimObject):
         )
         self.pid_control = PIDControl(k_p=50., k_d=8., k_i=45.)
 
-        self._attach_sim_objs([self.dyn_sys, self.pid_control])
+        self._add_sim_objs([self.dyn_sys, self.pid_control])
 
     # implement
     def _forward(self, p_d):

@@ -42,7 +42,7 @@ class CCCar(SimObject):
         # PI Controller
         self.pi_control = PIController(k_p=k_p, k_i=k_i)
 
-        self._attach_sim_objs([self.vel_dyn, self.pi_control])
+        self._add_sim_objs([self.vel_dyn, self.pi_control])
 
     # implement
     def _forward(self, v_r, theta):

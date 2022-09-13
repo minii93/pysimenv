@@ -16,7 +16,8 @@ class ClosedLoopSys(SimObject):
 
         self.linear_sys = DynSystem(
             initial_states={'x': [0., 1.]},
-            deriv_fun=lambda x, u: {'x': A.dot(x) + B.dot(u)}
+            deriv_fun=lambda x, u: {'x': A.dot(x) + B.dot(u)},
+            name="linear_sys"
         )
 
         # controller
@@ -27,7 +28,7 @@ class ClosedLoopSys(SimObject):
 
         self.lqr_control = StaticObject(interval=0.2, eval_fun=lambda x: -K.dot(x))
 
-        self._attach_sim_objs([self.linear_sys, self.lqr_control])
+        self._add_sim_objs([self.linear_sys, self.lqr_control])
 
     # implement
     def _forward(self):

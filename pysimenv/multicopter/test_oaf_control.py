@@ -32,7 +32,7 @@ class Model(SimObject):
                                   K_p=np.array([1.24, 1.24, 1.24, 225., 225.]),
                                   K_d=np.array([1., 1., 1., 30., 30.]))
 
-        self._attach_sim_objs([
+        self._add_sim_objs([
             self.quadrotor_dyn, self.control
         ])
 

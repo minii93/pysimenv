@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from itertools import count
 from typing import Union, Callable, Optional, Dict, List
 from pysimenv.core.util import SimClock, Timer, Logger
 from pysimenv.core.error import NoSimClockError
@@ -10,6 +11,8 @@ ArrayType = Union[list, tuple, np.ndarray]
 
 class StateVariable(object):
     def __init__(self, state: ArrayType):
+        if isinstance(state, float):
+            state = np.array([state])
         self.state = np.array(state)
         self.deriv = np.zeros_like(state)
         self._rk4_buffer = []
@@ -24,8 +27,14 @@ class StateVariable(object):
     def size(self):
         return self.state.size
 
-    def set_deriv(self, deriv: np.ndarray):
-        self.deriv = deriv
+    @property
+    def shape(self):
+        return self.state.shape
+
+    def set_deriv(self, deriv: ArrayType):
+        if isinstance(deriv, float):
+            deriv = np.array([deriv])
+        self.deriv = np.array(deriv)
 
     def rk4_update_1(self, dt: float):
         x_0 = np.copy(self.state)
@@ -35,7 +44,7 @@ class StateVariable(object):
         self._rk4_buffer.append(x_0)
         self._rk4_buffer.append(k_1)
         self.state = x_0 + dt / 2 * k_1  # x = x0 + dt/2*k1
-        if self.correction_fun is not None:
+        if self.correction_fun:
             self.state = self.correction_fun(self.state)
 
     def rk4_update_2(self, dt: float):
@@ -44,7 +53,7 @@ class StateVariable(object):
 
         self._rk4_buffer.append(k_2)
         self.state = x_0 + dt / 2 * k_2  # x = x0 + dt/2*k2
-        if self.correction_fun is not None:
+        if self.correction_fun:
             self.state = self.correction_fun(self.state)
 
     def rk4_update_3(self, dt: float):
@@ -53,7 +62,7 @@ class StateVariable(object):
 
         self._rk4_buffer.append(k_3)
         self.state = x_0 + dt / 2 * k_3  # x = x0 + dt/2*k3
-        if self.correction_fun is not None:
+        if self.correction_fun:
             self.state = self.correction_fun(self.state)
 
     def rk4_update_4(self, dt: float):
@@ -61,7 +70,7 @@ class StateVariable(object):
         k_4 = np.copy(self.deriv)
 
         self.state = x_0 + dt * (k_1 + 2 * k_2 + 2 * k_3 + k_4) / 6
-        if self.correction_fun is not None:
+        if self.correction_fun:
             self.state = self.correction_fun(self.state)
 
     def attach_correction_fun(self, correction_fun: Callable[[np.ndarray], np.ndarray]):
@@ -113,9 +122,11 @@ class StateVariable(object):
 
 class SimObject(object):
     FLAG_OPERATING = 0
+    _ids = count(0)
 
-    def __init__(self, interval: Union[int, float] = -1, name: str = 'model'):
-        self.name = name
+    def __init__(self, interval: Union[int, float] = -1, name: str = None, **kwargs):
+        self.id = next(self._ids)
+        self.name = name if name else 'sim_obj_' + str(self.id)
         self.flag: int = SimObject.FLAG_OPERATING
         self.state_vars: Dict[str, StateVariable] = dict()
 
@@ -126,19 +137,21 @@ class SimObject(object):
         self._last_output = None
 
     def _add_state_vars(self, **kwargs):
-        if kwargs is not None:
+        if kwargs:
             for name, initial_state in kwargs.items():
                 if isinstance(initial_state, float):
                     initial_state = np.array([initial_state])
                 var = StateVariable(initial_state)
                 self.state_vars[name] = var
 
-    def _attach_sim_objs(self, objs: Union['SimObject', list, tuple]):
+    def _add_sim_objs(self, objs: Union['SimObject', list, tuple]):
         if isinstance(objs, SimObject):
             objs = [SimObject]
 
         for obj in objs:
             if not isinstance(obj, SimObject):
+                continue
+            if obj in self.sim_objs:
                 continue
             self.sim_objs.append(obj)
 
@@ -269,10 +282,10 @@ class SimObject(object):
         return derivs
 
     @property
-    def output(self) -> Union[None, np.ndarray, dict]:
+    def output(self, *args, **kwargs) -> Union[None, float, np.ndarray, dict]:
         return self._last_output
 
-    def forward(self, *args, **kwargs) -> Union[None, np.ndarray, dict]:
+    def forward(self, *args, **kwargs) -> Union[None, float, np.ndarray, dict]:
         self._timer.forward()
         output = self._forward(*args, **kwargs)
 
@@ -282,17 +295,17 @@ class SimObject(object):
         return self._last_output
 
     # should be implemented
-    def _forward(self, *args, **kwargs) -> Union[None, np.ndarray, dict]:
+    def _forward(self, *args, **kwargs) -> Union[None, float, np.ndarray, dict]:
         raise NotImplementedError
 
     # to be implemented
-    def _check_stop_condition(self) -> Optional[bool]:
+    def _check_stop_condition(self, *args, **kwargs) -> Optional[bool]:
         pass
 
-    def check_stop_condition(self) -> bool:
-        to_stop_list = [self._check_stop_condition()]
+    def check_stop_condition(self, *args, **kwargs) -> bool:
+        to_stop_list = [self._check_stop_condition(*args, **kwargs)]
         for sim_obj in self.sim_objs:
-            to_stop_list.append(sim_obj.check_stop_condition())
+            to_stop_list.append(sim_obj.check_stop_condition(*args, **kwargs))
 
         to_stop = np.array(to_stop_list, dtype=bool).any()
         return to_stop
@@ -351,7 +364,7 @@ class SimObject(object):
                 ax_.set_ylabel(names[i])
                 ax_.grid()
                 ax_.legend()
-            fig.suptitle(var_key)
+            fig.suptitle("Response of {:s} in {:s}".format(var_key, self.name))
             fig.tight_layout()
 
         if show:
@@ -375,19 +388,19 @@ class SimObject(object):
 
 
 class StaticObject(SimObject):
-    def __init__(self, eval_fun, interval: Union[int, float] = -1, name='static_obj'):
-        super(StaticObject, self).__init__(interval, name)
+    def __init__(self, eval_fun, interval: Union[int, float] = -1, **kwargs):
+        super(StaticObject, self).__init__(interval=interval, **kwargs)
         self.eval_fun = eval_fun
 
     # implement
-    def _forward(self, *args, **kwargs) -> Union[None, np.ndarray, dict]:
+    def _forward(self, *args, **kwargs) -> Union[None, float, np.ndarray, dict]:
         return self.eval_fun(*args, **kwargs)
 
 
 class DynSystem(SimObject):
-    def __init__(self, initial_states: Dict[str, ArrayType], deriv_fun=None, output_fun=None, name='dyn_sys'):
+    def __init__(self, initial_states: Dict[str, ArrayType], deriv_fun=None, output_fun=None, **kwargs):
         """ initial_states: dictionary of (state1, state2, ...) """
-        super(DynSystem, self).__init__(name=name)
+        super(DynSystem, self).__init__(interval=-1, **kwargs)
         self._add_state_vars(**initial_states)
         self.initial_states = initial_states
 
@@ -412,12 +425,12 @@ class DynSystem(SimObject):
         args: dictionary of {name1: state1, name2: state2, ..., input_name1: input1, ...}
         return: dictionary of {name1: derivState1, name2: derivState2, ...)
         """
-        if self.deriv_fun is None:
+        if not self.deriv_fun:
             raise NotImplementedError
         return self.deriv_fun(**kwargs)
 
     # implement
-    def _forward(self, **kwargs) -> Union[None, np.ndarray, dict]:
+    def _forward(self, **kwargs) -> Union[None, float, np.ndarray, dict]:
         states = self._get_states()
         derivs = self._deriv(**states, **kwargs)
 
@@ -429,12 +442,12 @@ class DynSystem(SimObject):
 
     # override
     @property
-    def output(self) -> Union[None, np.ndarray, dict]:
+    def output(self) -> Union[None, float, np.ndarray, dict]:
         return self._output()
 
     # may be overridden
-    def _output(self) -> Union[None, np.ndarray, dict]:
-        if self.output_fun is None:
+    def _output(self) -> Union[None, float, np.ndarray, dict]:
+        if not self.output_fun:
             return None
         else:
             states = self._get_states()
@@ -442,8 +455,8 @@ class DynSystem(SimObject):
 
 
 class TimeVaryingDynSystem(SimObject):
-    def __init__(self, initial_states: Dict[str, ArrayType], deriv_fun=None, output_fun=None, name='time_varying_dyn_sys'):
-        super(TimeVaryingDynSystem, self).__init__(name=name)
+    def __init__(self, initial_states: Dict[str, ArrayType], deriv_fun=None, output_fun=None, **kwargs):
+        super(TimeVaryingDynSystem, self).__init__(interval=-1, **kwargs)
         self._add_state_vars(**initial_states)
         self.initial_states = initial_states
 
@@ -469,7 +482,7 @@ class TimeVaryingDynSystem(SimObject):
         return self.deriv_fun(t, **kwargs)
 
     # implement
-    def _forward(self, **kwargs) -> Union[None, np.ndarray, dict]:
+    def _forward(self, **kwargs) -> Union[None, float, np.ndarray, dict]:
         states = self._get_states()
         derivs = self._deriv(t=self.time, **states, **kwargs)
 
@@ -481,12 +494,12 @@ class TimeVaryingDynSystem(SimObject):
 
     # override
     @property
-    def output(self) -> Union[None, np.ndarray, dict]:
+    def output(self) -> Union[None, float, np.ndarray, dict]:
         return self._output()
 
     # may be overridden
-    def _output(self) -> Union[None, np.ndarray, dict]:
-        if self.output_fun is None:
+    def _output(self) -> Union[None, float, np.ndarray, dict]:
+        if not self.output_fun:
             return None
         else:
             states = self._get_states()

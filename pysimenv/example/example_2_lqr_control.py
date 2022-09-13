@@ -16,7 +16,8 @@ class ClosedLoopSys(SimObject):
 
         self.linear_sys = DynSystem(
             initial_states={'x': [0., 1.]},
-            deriv_fun=lambda x, u: {'x': A.dot(x) + B.dot(u)}
+            deriv_fun=lambda x, u: {'x': A.dot(x) + B.dot(u)},
+            name="linear_sys"
         )
 
         # control gain
@@ -25,7 +26,7 @@ class ClosedLoopSys(SimObject):
         P = lin.solve_continuous_are(A, B, Q, R)
         self.K = np.linalg.inv(R).dot(B.transpose().dot(P))
 
-        self._attach_sim_objs([self.linear_sys])
+        self._add_sim_objs([self.linear_sys])
 
     # implement
     def _forward(self):
