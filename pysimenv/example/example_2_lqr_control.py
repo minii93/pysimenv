@@ -26,7 +26,7 @@ class ClosedLoopSys(SimObject):
         P = lin.solve_continuous_are(A, B, Q, R)
         self.K = np.linalg.inv(R).dot(B.transpose().dot(P))
 
-        self._attach_sim_objs([self.linear_sys])
+        self._add_sim_objs([self.linear_sys])
 
     # implement
     def _forward(self):

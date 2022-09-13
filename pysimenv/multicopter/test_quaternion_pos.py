@@ -30,7 +30,7 @@ class Model(SimObject):
         )
         self.pos_control = QuaternionPosControl(m, K_pos)
 
-        self._attach_sim_objs([self.quadrotor, self.att_control, self.pos_control])
+        self._add_sim_objs([self.quadrotor, self.att_control, self.pos_control])
 
     def _forward(self, p_d: np.ndarray, v_d: np.ndarray = np.zeros(3)):
         p = self.quadrotor.pos

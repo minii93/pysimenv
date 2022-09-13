@@ -53,7 +53,7 @@ class FeedbackControl(SimObject):
         self.system = system
         self.control = control
 
-        self._attach_sim_objs([system, control])
+        self._add_sim_objs([system, control])
 
     # implement
     def _forward(self, **kwargs) -> Union[None, np.ndarray, dict]:
@@ -79,7 +79,7 @@ class OFBControl(SimObject):
         self.system = system
         self.control = control
 
-        self._attach_sim_objs([system, control])
+        self._add_sim_objs([system, control])
 
     # implement
     def _forward(self, **kwargs) -> Union[None, np.ndarray, dict]:
@@ -104,7 +104,7 @@ class Sequential(SimObject):
         self.first_obj = obj_list[0]
         self.other_obj_list = obj_list[1:]
 
-        self._attach_sim_objs(obj_list)
+        self._add_sim_objs(obj_list)
 
     # implement
     def _forward(self, **kwargs) -> Union[None, np.ndarray, dict]:

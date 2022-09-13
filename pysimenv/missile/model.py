@@ -126,7 +126,7 @@ class PlanarVehicle(SimObject):
     def __init__(self, kin: PlanarKin, name="vehicle"):
         super(PlanarVehicle, self).__init__(name=name)
         self.kin = kin
-        self._attach_sim_objs([self.kin])
+        self._add_sim_objs([self.kin])
 
     @property
     def p(self) -> np.ndarray:
@@ -259,7 +259,7 @@ class PlanarMissileWithPitch(PlanarMissile):
         self.pitch_dyn = pitch_dyn
         self.act_dyn = FirstOrderLinSys(x_0=np.array([0.]), tau=tau)
         self.pitch_ap = pitch_ap
-        self._attach_sim_objs([self.pitch_dyn, self.act_dyn, self.pitch_ap])
+        self._add_sim_objs([self.pitch_dyn, self.act_dyn, self.pitch_ap])
 
     # override
     def look_angle(self, lam: float):

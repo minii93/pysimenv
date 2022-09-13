@@ -26,7 +26,7 @@ class Model(SimObject):
         K = QuaternionAttControl.gain(Q, R)
         self.att_control = QuaternionAttControl(J, K)
 
-        self._attach_sim_objs([self.quadrotor, self.att_control])
+        self._add_sim_objs([self.quadrotor, self.att_control])
 
     def _forward(self, q_d: np.ndarray, omega_d: np.ndarray = np.zeros(3)):
         q = self.quadrotor.quaternion

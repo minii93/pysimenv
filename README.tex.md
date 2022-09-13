@@ -217,10 +217,10 @@ The control gain is calculated as
         self.K = np.linalg.inv(R).dot(B.transpose().dot(P))
 ```
 
-Any instance of `DynSystem` defined inside a class inheriting `SimObject` must be *attached* to the class instance at the initialization phase. (Actually, any instance of *any subclass* of `SimObject` must be attached to the class instance. The list of subclasses inheriting `SimObject` can be found in Overview section.) Therefore, attach `self.linear_sys` as
+Any instance of *any subclass* of `SimObject` defined inside *any subclass* of `SimObject` must be added to the list of simulation objects at the initialization phase. (The list of subclasses inheriting `SimObject` can be found in Overview section.) `DynSystem` class inherits `SimObject`, which means that `self.linear_sys` is also an instance of `SimObject`. Therefore, add `self.linear_sys` as
 
 ```python
-        self._attach_sim_objs([self.linear_sys])
+        self._add_sim_objs([self.linear_sys])
 ```
 
 We define the feedback structure by implementing `_forward` method.
@@ -260,8 +260,8 @@ class ClosedLoopSys(SimObject):
         # open-loop system
         zeta = 0.1
         omega = 1.
-        A = np.array([[0., 1.], [-omega**2, -2*zeta*omega]])
-        B = np.array([[0.], [omega**2]])
+        A = np.array([[0., 1.], [-omega ** 2, -2 * zeta * omega]])
+        B = np.array([[0.], [omega ** 2]])
 
         self.linear_sys = DynSystem(
             initial_states={'x': [0., 1.]},
@@ -275,7 +275,7 @@ class ClosedLoopSys(SimObject):
         P = lin.solve_continuous_are(A, B, Q, R)
         self.K = np.linalg.inv(R).dot(B.transpose().dot(P))
 
-        self._attach_sim_objs([self.linear_sys])
+        self._add_sim_objs([self.linear_sys])
 
     # implement
     def _forward(self):
@@ -334,10 +334,10 @@ We follow the same procedure as in Example 2. The difference is that now we use 
 
 To illustrate the usefulness of `StaticObject` class, the sampling interval (`interval` property) is intentionally set as 0.2(seconds) corresponding to sampling frequency of 5(Hz).
 
-Any instance of `DynSystem` and `StaticObject` should be attached to the class instance. Therefore, attach both the system object and controller object.
+`DynSystem` and `StaticObject` both inherit `SimObject` class. Therefore, add both the system object `self.linear_sys` and controller object `self.lqr_control` to the list of simulation objects.
 
 ```python
-        self._attach_sim_objs([self.linear_sys, self.lqr_control])
+        self._add_sim_objs([self.linear_sys, self.lqr_control])
 ```
 
 Then, we define the system structure by implementing `_forward` method.
@@ -366,8 +366,8 @@ class ClosedLoopSys(SimObject):
         # open-loop system
         zeta = 0.1
         omega = 1.
-        A = np.array([[0., 1.], [-omega**2, -2*zeta*omega]])
-        B = np.array([[0.], [omega**2]])
+        A = np.array([[0., 1.], [-omega ** 2, -2 * zeta * omega]])
+        B = np.array([[0.], [omega ** 2]])
 
         self.linear_sys = DynSystem(
             initial_states={'x': [0., 1.]},
@@ -383,7 +383,7 @@ class ClosedLoopSys(SimObject):
 
         self.lqr_control = StaticObject(interval=0.2, eval_fun=lambda x: -K.dot(x))
 
-        self._attach_sim_objs([self.linear_sys, self.lqr_control])
+        self._add_sim_objs([self.linear_sys, self.lqr_control])
 
     # implement
     def _forward(self):
@@ -670,7 +670,7 @@ class CCCar(SimObject):
         # PI Controller
         self.pi_control = PIController(k_p=k_p, k_i=k_i)
 
-        self._attach_sim_objs([self.vel_dyn, self.pi_control])
+        self._add_sim_objs([self.vel_dyn, self.pi_control])
 ```
 
 Implement `_forward` method of the closed-loop system.
@@ -764,7 +764,7 @@ class PIController(SimObject):
         self.state_vars['e_i'].set_deriv(deriv=e)
 
         e_i = self.state('e_i')
-        u_pi = self.k_p*e + self.k_i*e_i
+        u_pi = self.k_p * e + self.k_i * e_i
         return u_pi
 
 
@@ -772,6 +772,7 @@ class CCCar(SimObject):
     """
     Cruise-controlled car
     """
+
     def __init__(self, k_p, k_i, v_0):
         super(CCCar, self).__init__()
         # mass-normalized parameters
@@ -779,7 +780,7 @@ class CCCar(SimObject):
         g = 9.81
 
         def deriv_fun(v, u, theta):
-            v_dot = -c*v + u - g*theta
+            v_dot = -c * v + u - g * theta
             return {'v': v_dot}
 
         self.vel_dyn = DynSystem(
@@ -790,7 +791,7 @@ class CCCar(SimObject):
         # PI Controller
         self.pi_control = PIController(k_p=k_p, k_i=k_i)
 
-        self._attach_sim_objs([self.vel_dyn, self.pi_control])
+        self._add_sim_objs([self.vel_dyn, self.pi_control])
 
     # implement
     def _forward(self, v_r, theta):
@@ -818,8 +819,8 @@ def main():
     data_list = []
 
     for omega_0 in omega_0_list:
-        k_p = 2*zeta*omega_0 - 0.02
-        k_i = omega_0**2
+        k_p = 2 * zeta * omega_0 - 0.02
+        k_i = omega_0 ** 2
 
         car = CCCar(k_p=k_p, k_i=k_i, v_0=v_r)
         simulator = Simulator(car)

@@ -156,7 +156,7 @@ class Model(SimObject):
         self.ismc = ISMC(
             x_b_0=np.zeros(4), N=np.diag([1., 1., 1., 1.]), eps_1=0.5, eps_2=2.5, J=J, m=m)
 
-        self._attach_sim_objs([
+        self._add_sim_objs([
             self.pos_trajectory, self.vel_trajectory,
             self.quadrotor_dyn, self.actuator_fault, self.att_control, self.pos_control,
             self.estimator, self.ismc])

@@ -28,7 +28,7 @@ class ClosedLoopSys(SimObject):
 
         self.lqr_control = StaticObject(interval=0.2, eval_fun=lambda x: -K.dot(x))
 
-        self._attach_sim_objs([self.linear_sys, self.lqr_control])
+        self._add_sim_objs([self.linear_sys, self.lqr_control])
 
     # implement
     def _forward(self):

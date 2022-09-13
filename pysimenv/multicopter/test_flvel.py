@@ -23,7 +23,7 @@ class FLVelTracking(SimObject):
         k_p_vel = np.array([5., 5., 5.])
         self.vel_control = FLVelControl(m, J, k_p_att, k_d_att, k_p_vel)
 
-        self._attach_sim_objs([self.quadrotor, self.vel_control])
+        self._add_sim_objs([self.quadrotor, self.vel_control])
 
     # implement
     def _forward(self, v_d: np.ndarray = np.zeros(3)):
