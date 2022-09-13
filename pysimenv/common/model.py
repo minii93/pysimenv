@@ -6,18 +6,18 @@ from pysimenv.common import orientation, util
 
 
 class SignalGenerator(SimObject):
-    def __init__(self, shaping_fun, interval: Union[int, float] = -1):
-        super(SignalGenerator, self).__init__(interval=interval)
+    def __init__(self, shaping_fun, interval: Union[int, float] = -1, **kwargs):
+        super(SignalGenerator, self).__init__(interval=interval, **kwargs)
         self.shaping_fun = shaping_fun
 
     # implementation
-    def _forward(self) -> Union[np.ndarray, dict]:
-        return self.shaping_fun(self.time)
+    def _forward(self, *args, **kwargs) -> Union[np.ndarray, dict]:
+        return self.shaping_fun(self.time, *args, **kwargs)
 
 
 class Scope(SimObject):
-    def __init__(self):
-        super(Scope, self).__init__()
+    def __init__(self, **kwargs):
+        super(Scope, self).__init__(**kwargs)
 
     # implementation
     def _forward(self, **kwargs):
@@ -48,8 +48,8 @@ class Scope(SimObject):
 
 
 class FeedbackControl(SimObject):
-    def __init__(self, system: SimObject, control: SimObject):
-        super(FeedbackControl, self).__init__()
+    def __init__(self, system: SimObject, control: SimObject, **kwargs):
+        super(FeedbackControl, self).__init__(**kwargs)
         self.system = system
         self.control = control
 
@@ -74,8 +74,8 @@ class OFBControl(SimObject):
     """
     Output feedback control
     """
-    def __init__(self, system: SimObject, control: SimObject):
-        super(OFBControl, self).__init__()
+    def __init__(self, system: SimObject, control: SimObject, **kwargs):
+        super(OFBControl, self).__init__(**kwargs)
         self.system = system
         self.control = control
 
@@ -97,9 +97,9 @@ class OFBControl(SimObject):
 
 
 class Sequential(SimObject):
-    def __init__(self, obj_list: Union[List[SimObject], Tuple[SimObject]]):
-        super(Sequential, self).__init__()
-        assert len(obj_list) > 0, "(sequential) Invalid obj_list!"
+    def __init__(self, obj_list: Union[List[SimObject], Tuple[SimObject]], **kwargs):
+        super(Sequential, self).__init__(**kwargs)
+        assert len(obj_list) > 0, "[sequential] Invalid obj_list!"
         self.obj_list = list(obj_list)
         self.first_obj = obj_list[0]
         self.other_obj_list = obj_list[1:]
@@ -126,8 +126,8 @@ class FlatEarthEnv(object):
 
 
 class LinSys(DynSystem):
-    def __init__(self, x_0: ArrayType, A: np.ndarray, B: Optional[np.ndarray] = None, C: Optional[np.ndarray] = None):
-        super(LinSys, self).__init__(initial_states={'x': x_0})
+    def __init__(self, x_0: ArrayType, A: np.ndarray, B: np.ndarray = None, C: np.ndarray = None, **kwargs):
+        super(LinSys, self).__init__(initial_states={'x': x_0}, **kwargs)
         self.A = A
         self.B = B
         if C is None:
@@ -149,48 +149,48 @@ class LinSys(DynSystem):
 
 
 class FirstOrderLinSys(LinSys):
-    def __init__(self, x_0: ArrayType, tau: float):
+    def __init__(self, x_0: ArrayType, tau: float, **kwargs):
         A = np.array([[-1./tau]])
         B = np.array([[1./tau]])
 
-        super(FirstOrderLinSys, self).__init__(x_0, A, B)
+        super(FirstOrderLinSys, self).__init__(x_0, A, B, **kwargs)
         self.tau = tau
 
-    # implement
-    def _output(self) -> np.ndarray:
+    # override
+    def _output(self) -> float:
         return self.state('x')[0]
 
 
 class SecondOrderLinSys(LinSys):
-    def __init__(self, x_0: ArrayType, zeta: float, omega: float):
+    def __init__(self, x_0: ArrayType, zeta: float, omega: float, **kwargs):
         A = np.array([
             [0., 1.],
             [-omega**2, -2*zeta*omega]
         ], dtype=np.float32)
         B = np.array([[0.], [omega**2]], dtype=np.float32)
 
-        super(SecondOrderLinSys, self).__init__(x_0, A, B)
+        super(SecondOrderLinSys, self).__init__(x_0, A, B, **kwargs)
         self.zeta = zeta
         self.omega = omega
 
-    # implement
-    def _output(self) -> np.ndarray:
+    # override
+    def _output(self) -> float:
         return self.state('x')[0]
 
 
 class Integrator(DynSystem):
-    def __init__(self, initial_state: Union[ArrayType]):
+    def __init__(self, initial_state: Union[ArrayType], **kwargs):
         def deriv_fun(x: np.ndarray, u: Union[float, np.ndarray]):
             if isinstance(u, float):
                 u = np.array([u])
             return {'x': u}
 
-        super(Integrator, self).__init__({'x': initial_state}, deriv_fun)
+        super(Integrator, self).__init__({'x': initial_state}, deriv_fun, **kwargs)
 
 
 class Differentiator(SimObject):
-    def __init__(self):
-        super(Differentiator, self).__init__()
+    def __init__(self, **kwargs):
+        super(Differentiator, self).__init__(**kwargs)
         self.u_prev = None
         self.t_prev = None
 
@@ -210,9 +210,8 @@ class Differentiator(SimObject):
 
 class PIDControl(SimObject):
     def __init__(self, k_p: Union[float, np.ndarray], k_i: Union[float, np.ndarray], k_d: Union[float, np.ndarray],
-                 windup_limit=None,
-                 interval: Union[int, float] = -1):
-        super(PIDControl, self).__init__(interval=interval)
+                 windup_limit=None, **kwargs):
+        super(PIDControl, self).__init__(**kwargs)
         self._add_state_vars(e_i=np.zeros_like(k_p))
         self.k_p = k_p
         self.k_i = k_i
@@ -244,8 +243,8 @@ class PIDControl(SimObject):
 
 class Dyn6DOF(DynSystem):
     def __init__(self, p_0: np.ndarray, v_b_0: np.ndarray, q_0: np.ndarray, omega_0: np.ndarray,
-                 m: float, J: np.ndarray):
-        super(Dyn6DOF, self).__init__(initial_states={'p': p_0, 'v_b': v_b_0, 'q': q_0, 'omega': omega_0})
+                 m: float, J: np.ndarray, **kwargs):
+        super(Dyn6DOF, self).__init__(initial_states={'p': p_0, 'v_b': v_b_0, 'q': q_0, 'omega': omega_0}, **kwargs)
         self.m = m
         self.J = J
 
@@ -297,8 +296,9 @@ class Dyn6DOF(DynSystem):
 
 class Dyn6DOFEuler(DynSystem):
     def __init__(self, p_0: np.ndarray, v_b_0: np.ndarray, eta_0: np.ndarray, omega_0: np.ndarray,
-                 m: float, J: np.ndarray):
-        super(Dyn6DOFEuler, self).__init__(initial_states={'p': p_0, 'v_b': v_b_0, 'eta': eta_0, 'omega': omega_0})
+                 m: float, J: np.ndarray, **kwargs):
+        super(Dyn6DOFEuler, self).__init__(initial_states={'p': p_0, 'v_b': v_b_0, 'eta': eta_0, 'omega': omega_0},
+                                           **kwargs)
         self.m = m
         self.J = J
         self.name = "dyn_6dof_euler"
@@ -346,8 +346,9 @@ class Dyn6DOFEuler(DynSystem):
 
 class Dyn6DOFRotMat(DynSystem):
     def __init__(self, p_0: np.ndarray, v_b_0: np.ndarray, R_0: np.ndarray, omega_0: np.ndarray,
-                 m: float, J: np.ndarray):
-        super(Dyn6DOFRotMat, self).__init__(initial_states={'p': p_0, 'v_b': v_b_0, 'R': R_0, 'omega': omega_0})
+                 m: float, J: np.ndarray, **kwargs):
+        super(Dyn6DOFRotMat, self).__init__(initial_states={'p': p_0, 'v_b': v_b_0, 'R': R_0, 'omega': omega_0},
+                                            **kwargs)
         self.m = m
         self.J = J
         self.name = "dyn_6dof_rotation"

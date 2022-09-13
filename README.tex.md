@@ -202,7 +202,8 @@ The open-loop system is defined as
 
         self.linear_sys = DynSystem(
             initial_states={'x': [0., 1.]},
-            deriv_fun=lambda x, u: {'x': A.dot(x) + B.dot(u)}
+            deriv_fun=lambda x, u: {'x': A.dot(x) + B.dot(u)},
+            name="linear_sys"
         )
 ```
 
@@ -264,7 +265,8 @@ class ClosedLoopSys(SimObject):
 
         self.linear_sys = DynSystem(
             initial_states={'x': [0., 1.]},
-            deriv_fun=lambda x, u: {'x': A.dot(x) + B.dot(u)}
+            deriv_fun=lambda x, u: {'x': A.dot(x) + B.dot(u)},
+            name="linear_sys"
         )
 
         # control gain
@@ -369,7 +371,8 @@ class ClosedLoopSys(SimObject):
 
         self.linear_sys = DynSystem(
             initial_states={'x': [0., 1.]},
-            deriv_fun=lambda x, u: {'x': A.dot(x) + B.dot(u)}
+            deriv_fun=lambda x, u: {'x': A.dot(x) + B.dot(u)},
+            name="linear_sys"
         )
 
         # controller
