@@ -128,6 +128,7 @@ class SimObject(object):
         self.id = next(self._ids)
         self.name = name if name else 'sim_obj_' + str(self.id)
         self.flag: int = SimObject.FLAG_OPERATING
+        self.is_static = True
         self.state_vars: Dict[str, StateVariable] = dict()
 
         self.sim_objs: List[SimObject] = []
@@ -143,6 +144,7 @@ class SimObject(object):
                     initial_state = np.array([initial_state])
                 var = StateVariable(initial_state)
                 self.state_vars[name] = var
+                self.is_static = False
 
     def _add_sim_objs(self, objs: Union['SimObject', list, tuple]):
         if isinstance(objs, SimObject):
@@ -154,6 +156,7 @@ class SimObject(object):
             if obj in self.sim_objs:
                 continue
             self.sim_objs.append(obj)
+            self.is_static = self.is_static and obj.is_static
 
     def collect_state_vars(self) -> List[StateVariable]:
         state_vars = []
@@ -287,10 +290,14 @@ class SimObject(object):
 
     def forward(self, *args, **kwargs) -> Union[None, float, np.ndarray, dict]:
         self._timer.forward()
-        output = self._forward(*args, **kwargs)
-
-        if self._timer.is_event:
-            self._last_output = output
+        if self.is_static:
+            if self._timer.is_event:
+                output = self._forward(*args, **kwargs)
+                self._last_output = output
+        else:
+            output = self._forward(*args, **kwargs)
+            if self._timer.is_event:
+                self._last_output = output
 
         return self._last_output
 
