@@ -148,19 +148,23 @@ class PlanarVehicle(SimObject):
         pass
 
     def plot_path(self, fig_ax=None, label="vehicle", show=False):
-        if fig_ax is None:
+        if fig_ax:
+            fig = fig_ax['fig']
+            ax = fig_ax['ax']
+        else:
             fig, ax = plt.subplots()
             ax.set_xlabel("p_x (m)")
             ax.set_ylabel("p_y (m)")
             ax.set_aspect('equal')
             ax.set_title("Flight Path")
             ax.grid()
-        else:
-            fig = fig_ax['fig']
-            ax = fig_ax['ax']
 
         p = self.kin.history('p')
-        ax.plot(p[:, 0], p[:, 1], label=label)
+
+        if np.std(p[:, 0]) < 1e-2 and np.std(p[:, 1]) < 1e-2:
+            ax.plot(p[0, 0], p[0, 1], marker='o', label=label)
+        else:
+            ax.plot(p[:, 0], p[:, 1], label=label)
         ax.legend()
         fig.tight_layout()
 
@@ -242,7 +246,7 @@ class PlanarMissile(PlanarVehicle):
         np.set_printoptions(precision=2, suppress=True)
 
         print("[{:s}] Position: {:.2f}(m), {:.2f}(m), Speed: {:.2f}(m/s), Flight path angle: {:.2f}(deg)".format(
-            self.name, self.p[0], self.p[1], self.V, np.deg2rad(self.gamma)))
+            self.name, self.p[0], self.p[1], self.V, np.rad2deg(self.gamma)))
 
         if self.flag == self.FLAG_OPERATING:
             print("[{:s}] Status: operating \n".format(self.name))
