@@ -11,8 +11,8 @@ class Engagement2dim(SimObject):
     MISSILE_STOP = 2
     IS_OUT_OF_VIEW = 3
 
-    def __init__(self, missile: PlanarMissile, target: PlanarVehicle, guidance: Guidance2dim):
-        super(Engagement2dim, self).__init__()
+    def __init__(self, missile: PlanarMissile, target: PlanarVehicle, guidance: Guidance2dim, name="model", **kwargs):
+        super(Engagement2dim, self).__init__(name=name, **kwargs)
         self.missile = missile
         self.target = target
         self.guidance = guidance
