@@ -7,8 +7,8 @@ from pysimenv.common.model import FirstOrderLinSys
 
 
 class PlanarKin(DynSystem):
-    def __init__(self, p_0: ArrayType, v_0: ArrayType):
-        super(PlanarKin, self).__init__(initial_states={'p': p_0, 'v': v_0}, name="kin")
+    def __init__(self, p_0: ArrayType, v_0: ArrayType, name="kin", **kwargs):
+        super(PlanarKin, self).__init__(initial_states={'p': p_0, 'v': v_0}, name=name, **kwargs)
 
     # implement
     def _deriv(self, p, v, a: np.ndarray):
@@ -51,9 +51,9 @@ class PlanarKin(DynSystem):
 
 
 class PitchDyn(DynSystem):
-    def __init__(self, x_0: ArrayType, V, L_alp, L_delta, M_alp, M_q, M_delta, *args, **kwargs):
+    def __init__(self, x_0: ArrayType, V, L_alp, L_delta, M_alp, M_q, M_delta, name="pitch_dyn", **kwargs):
         # x = [alp, theta, q]
-        super(PitchDyn, self).__init__(initial_states={'x': x_0}, name="pitch_dyn")
+        super(PitchDyn, self).__init__(initial_states={'x': x_0}, name=name, **kwargs)
         self.V = V
         self.L_alp = L_alp
         self.L_delta = L_delta
@@ -123,8 +123,8 @@ class PitchDyn(DynSystem):
 
 
 class PlanarVehicle(SimObject):
-    def __init__(self, kin: PlanarKin, name="vehicle"):
-        super(PlanarVehicle, self).__init__(name=name)
+    def __init__(self, kin: PlanarKin, name="vehicle", **kwargs):
+        super(PlanarVehicle, self).__init__(name=name, **kwargs)
         self.kin = kin
         self._add_sim_objs([self.kin])
 
@@ -148,19 +148,23 @@ class PlanarVehicle(SimObject):
         pass
 
     def plot_path(self, fig_ax=None, label="vehicle", show=False):
-        if fig_ax is None:
+        if fig_ax:
+            fig = fig_ax['fig']
+            ax = fig_ax['ax']
+        else:
             fig, ax = plt.subplots()
             ax.set_xlabel("p_x (m)")
             ax.set_ylabel("p_y (m)")
             ax.set_aspect('equal')
             ax.set_title("Flight Path")
             ax.grid()
-        else:
-            fig = fig_ax['fig']
-            ax = fig_ax['ax']
 
         p = self.kin.history('p')
-        ax.plot(p[:, 0], p[:, 1], label=label)
+
+        if np.std(p[:, 0]) < 1e-2 and np.std(p[:, 1]) < 1e-2:
+            ax.plot(p[0, 0], p[0, 1], marker='o', label=label)
+        else:
+            ax.plot(p[:, 0], p[:, 1], label=label)
         ax.legend()
         fig.tight_layout()
 
@@ -176,10 +180,10 @@ class PlanarMissile(PlanarVehicle):
     FLAG_STALLED = 1
     FLAG_COLLIDED = 2
 
-    def __init__(self, p_0: ArrayType, V_0: float, gamma_0: float, name="missile"):
+    def __init__(self, p_0: ArrayType, V_0: float, gamma_0: float, name="missile", **kwargs):
         v_0 = np.array([V_0*np.cos(gamma_0), V_0*np.sin(gamma_0)])
         kin = PlanarKin(p_0=p_0, v_0=v_0)
-        super(PlanarMissile, self).__init__(kin=kin, name=name)
+        super(PlanarMissile, self).__init__(kin=kin, name=name, **kwargs)
         self.fov_limit = np.inf  # Field-of-view limit
         self.acc_limit = np.array([-np.inf, np.inf])  # Acceleration limit
         self.ground_elev = -np.inf  # Ground elevation
@@ -242,7 +246,7 @@ class PlanarMissile(PlanarVehicle):
         np.set_printoptions(precision=2, suppress=True)
 
         print("[{:s}] Position: {:.2f}(m), {:.2f}(m), Speed: {:.2f}(m/s), Flight path angle: {:.2f}(deg)".format(
-            self.name, self.p[0], self.p[1], self.V, np.deg2rad(self.gamma)))
+            self.name, self.p[0], self.p[1], self.V, np.rad2deg(self.gamma)))
 
         if self.flag == self.FLAG_OPERATING:
             print("[{:s}] Status: operating \n".format(self.name))
@@ -254,8 +258,8 @@ class PlanarMissile(PlanarVehicle):
 
 class PlanarMissileWithPitch(PlanarMissile):
     def __init__(self, p_0: ArrayType, V_0: float, gamma_0: float,
-                 pitch_dyn: PitchDyn, pitch_ap: SimObject, tau, name="missile"):
-        super(PlanarMissileWithPitch, self).__init__(p_0, V_0, gamma_0, name=name)
+                 pitch_dyn: PitchDyn, pitch_ap: SimObject, tau, name="missile", **kwargs):
+        super(PlanarMissileWithPitch, self).__init__(p_0, V_0, gamma_0, name=name, **kwargs)
         self.pitch_dyn = pitch_dyn
         self.act_dyn = FirstOrderLinSys(x_0=np.array([0.]), tau=tau)
         self.pitch_ap = pitch_ap
@@ -283,10 +287,10 @@ class PlanarMissileWithPitch(PlanarMissile):
 
 
 class PlanarMovingTarget(PlanarVehicle):
-    def __init__(self, p_0: ArrayType, V_0: float, gamma_0: float, name="target"):
+    def __init__(self, p_0: ArrayType, V_0: float, gamma_0: float, name="target", **kwargs):
         v_0 = np.array([V_0*np.cos(gamma_0), V_0*np.sin(gamma_0)])
         kin = PlanarKin(p_0=p_0, v_0=v_0)
-        super(PlanarMovingTarget, self).__init__(kin=kin, name=name)
+        super(PlanarMovingTarget, self).__init__(kin=kin, name=name, **kwargs)
 
     # implement
     @property

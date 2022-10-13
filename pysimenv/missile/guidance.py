@@ -7,8 +7,8 @@ from pysimenv.missile.util import RelKin2dim
 
 
 class Guidance2dim(SimObject):
-    def __init__(self, interval: Union[int, float] = -1):
-        super(Guidance2dim, self).__init__(interval=interval)
+    def __init__(self, interval: Union[int, float] = -1, name="guidance", **kwargs):
+        super(Guidance2dim, self).__init__(interval=interval, name=name, **kwargs)
 
     # to be implemented
     def _forward(self, missile: PlanarMissile, target: PlanarVehicle, rel_kin: RelKin2dim) -> float:
@@ -16,8 +16,8 @@ class Guidance2dim(SimObject):
 
 
 class PurePNG2dim(Guidance2dim):
-    def __init__(self, N: float = 3.0, interval: Union[int, float] = -1):
-        super(PurePNG2dim, self).__init__(interval=interval)
+    def __init__(self, N: float = 3.0, interval: Union[int, float] = -1, **kwargs):
+        super(PurePNG2dim, self).__init__(interval=interval, **kwargs)
         self.N = N
 
     # implement
@@ -37,8 +37,8 @@ class IACBPNG(Guidance2dim):
     Biased PNG with terminal-angle constraint (impact angle control)
     """
     def __init__(self, N: float, tau: float, theta_M_0: float, theta_M_f: float, theta_T: float, lam_0: float,
-                 sigma_max: float = float('inf'), b_max: float = float('inf')):
-        super(IACBPNG, self).__init__()
+                 sigma_max: float = float('inf'), b_max: float = float('inf'), **kwargs):
+        super(IACBPNG, self).__init__(**kwargs)
         self._add_state_vars(B=np.array([0.]))
 
         # Guidance parameters
