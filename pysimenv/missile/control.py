@@ -1,34 +1,24 @@
 import numpy as np
-import scipy
 import matplotlib.pyplot as plt
 from pysimenv.core.base import SimObject
 
 
-class PitchAP(SimObject):
-    def __init__(self, V, L_alp, L_delta, M_alp, M_q, M_delta, tau, *args, **kwargs):
-        super(PitchAP, self).__init__()
-        A = np.array([
-            [-L_alp/V, L_alp, -L_delta/tau],
-            [M_alp/L_alp, M_q, M_delta - M_alp*L_delta/L_alp],
-            [0., 0., -1./tau]
-        ])
-        B = np.array([[L_delta/tau], [0.], [1./tau]])
+class ThreeLoopAP(SimObject):
+    def __init__(self, V, L_alp, M_q, M_delta, tau_d, omega_d, zeta_d, name="autopilot", **kwargs):
+        super(ThreeLoopAP, self).__init__(name=name, **kwargs)
+        self.K_A = 1./(L_alp*tau_d) - 1./V
+        self.K_DC = V/(V - L_alp*tau_d)
+        self.K_R = (2*zeta_d*omega_d + M_q)/M_delta
+        self.omega_i = omega_d**2/(2*zeta_d*omega_d + M_q)
+        self._add_state_vars(e_q_i=np.array([0.]))
 
-        C = np.array([[1., 0., 0.]])
+    def _forward(self, q, a_L, a_L_c) -> float:
+        q_c = self.K_A*(self.K_DC*a_L_c - a_L)
+        e_q_i = self.state('e_q_i')[0]
+        delta_c = self.K_R*(self.omega_i*e_q_i - q)
 
-        Q = np.diag([1., 0.01, 0.])
-        R = np.diag([10000.])
-        P = scipy.linalg.solve_continuous_are(A, B, Q, R)
-        self.K = np.linalg.inv(R).dot(B.transpose().dot(P))
-
-        A_c = A - B.dot(self.K)
-        e_1 = np.array([1., 0., 0.])
-        self.K_ss = -1./(C.dot(np.linalg.inv(A_c).dot(B).dot(self.K).dot(e_1)))[0]
-
-    # implement
-    def _forward(self, a_L, q, delta, a_L_c) -> float:
-        e = np.array([a_L - self.K_ss*a_L_c, q, delta])
-        delta_c = -self.K.dot(e)[0]
+        e_q = q_c - q
+        self.state_vars['e_q_i'].set_deriv(deriv=e_q)
 
         self._logger.append(t=self.time, a_L=a_L, a_L_c=a_L_c)
         return delta_c

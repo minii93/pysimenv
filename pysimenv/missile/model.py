@@ -261,8 +261,8 @@ class PlanarMissileWithPitch(PlanarMissile):
                  pitch_dyn: PitchDyn, pitch_ap: SimObject, tau, name="missile", **kwargs):
         super(PlanarMissileWithPitch, self).__init__(p_0, V_0, gamma_0, name=name, **kwargs)
         self.pitch_dyn = pitch_dyn
-        self.act_dyn = FirstOrderLinSys(x_0=np.array([0.]), tau=tau)
         self.pitch_ap = pitch_ap
+        self.act_dyn = FirstOrderLinSys(x_0=np.array([0.]), tau=tau)
         self._add_sim_objs([self.pitch_dyn, self.act_dyn, self.pitch_ap])
 
     # override
@@ -271,11 +271,11 @@ class PlanarMissileWithPitch(PlanarMissile):
         return sigma
 
     def _forward(self, a_M_cmd: float):
-        a_L_c = a_M_cmd  # approximation
         delta = self.act_dyn.output
+        q = self.pitch_dyn.output[2]
         a_L = self.pitch_dyn.lift_accel(delta)
-        x_p = self.pitch_dyn.output
-        delta_c = self.pitch_ap.forward(a_L=a_L, q=x_p[2], delta=delta, a_L_c=a_L_c)
+        a_L_c = a_M_cmd  # approximation
+        delta_c = self.pitch_ap.forward(q=q, a_L=a_L, a_L_c=a_L_c)
 
         self.act_dyn.forward(u=np.array([delta_c]))
         self.pitch_dyn.forward(delta=delta)
