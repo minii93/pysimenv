@@ -97,6 +97,34 @@ class BSControl(SimObject):
         return {'f': u_1, 'tau': np.array([u_2, u_3, u_4])}
 
 
+class SMAttControl(SimObject):
+    """
+    Attitude control using sliding mode
+    """
+    def __init__(self, m, J, c, k, **kwargs):
+        super(SMAttControl, self).__init__(**kwargs)
+        self.m = m
+        self.J = J
+        self.c = c
+        self.k = k
+
+    # implement
+    def _forward(self, dyn: MulticopterDyn, eta_d: np.ndarray, omega_d: np.ndarray = np.zeros(3),
+                 omega_d_dot: np.ndarray = np.zeros(3)):
+        switching_fun = lambda v: 2./np.pi*np.arctan(np.linalg.norm(v))*v
+
+        eta = dyn.euler_ang
+        omega = dyn.ang_vel
+
+        e = eta_d - eta
+        e_dot = omega_d - omega
+
+        s = e_dot + self.c*e
+        tau = np.cross(omega, self.J.dot(omega)) + self.J.dot(omega_d_dot + self.c*e_dot + self.k*switching_fun(s))
+
+        f = self.m*FlatEarthEnv.grav_accel
+        return {'f': f, 'tau': tau}
+
 class FLVelControl(SimObject):
     """
     Feedback linearization velocity control

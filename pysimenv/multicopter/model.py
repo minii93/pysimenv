@@ -136,7 +136,7 @@ class MulticopterDyn(DynSystem):
             plt.draw()
             plt.pause(0.1)
 
-    def plot_euler_angles(self):
+    def plot_euler_angles(self, show: bool = False):
         t = self.history('t')
         R = self.history('R')
 
@@ -158,8 +158,11 @@ class MulticopterDyn(DynSystem):
             plt.legend()
         plt.suptitle("Euler angles")
 
-        plt.draw()
-        plt.pause(0.01)
+        if show:
+            plt.show()
+        else:
+            plt.draw()
+            plt.pause(0.01)
         return fig
 
 
