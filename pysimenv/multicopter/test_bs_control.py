@@ -1,6 +1,7 @@
 import numpy as np
 from pysimenv.core.simulator import Simulator
-from pysimenv.multicopter.model import MulticopterDyn, QuadBase
+from pysimenv.multicopter.base import MulticopterDyn
+from pysimenv.multicopter.model import QuadBase
 from pysimenv.multicopter.control import BSControl
 
 

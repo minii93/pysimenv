@@ -5,7 +5,7 @@ from pyquaternion import Quaternion
 from pysimenv.core.base import SimObject
 from pysimenv.common.model import FlatEarthEnv
 from pysimenv.common.orientation import quaternion_to_axis_angle
-from pysimenv.multicopter.model import MulticopterDyn
+from pysimenv.multicopter.base import MulticopterDyn
 
 
 class BSControl(SimObject):

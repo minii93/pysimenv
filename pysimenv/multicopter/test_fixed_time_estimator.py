@@ -2,7 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pysimenv.core.base import SimObject
 from pysimenv.core.simulator import Simulator
-from pysimenv.multicopter.model import MulticopterDyn, QuadXEffector, QuadXMixer, ActuatorFault
+from pysimenv.multicopter.base import MulticopterDyn
+from pysimenv.multicopter.model import QuadXEffector, QuadXMixer, ActuatorFault
 from pysimenv.multicopter.control import QuaternionPosControl, QuaternionAttControl
 from pysimenv.multicopter.estimator import FixedTimeFaultEstimator
 from pysimenv.common.model import FlatEarthEnv, SignalGenerator
