@@ -11,9 +11,9 @@ class FixedTimeFaultEstimator(DynSystem):
     """
     def __init__(self, initial_states: Union[list, tuple],
                  alpha: float, beta: float, k_1: float, k_2: float,
-                 m: float, J: np.ndarray):
+                 m: float, J: np.ndarray, **kwargs):
         super(FixedTimeFaultEstimator, self).__init__(
-            initial_states={'z_1': initial_states[0], 'z_2': initial_states[1]}
+            initial_states={'z_1': initial_states[0], 'z_2': initial_states[1]}, **kwargs
         )
         self.alpha = alpha
         self.beta = beta

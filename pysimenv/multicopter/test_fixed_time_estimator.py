@@ -2,7 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pysimenv.core.base import SimObject
 from pysimenv.core.simulator import Simulator
-from pysimenv.multicopter.model import MulticopterDynamic, QuadXThrustModel, QuadXMixer, ActuatorFault
+from pysimenv.multicopter.base import MulticopterDyn
+from pysimenv.multicopter.model import QuadXEffector, QuadXMixer, ActuatorFault
 from pysimenv.multicopter.control import QuaternionPosControl, QuaternionAttControl
 from pysimenv.multicopter.estimator import FixedTimeFaultEstimator
 from pysimenv.common.model import FlatEarthEnv, SignalGenerator
@@ -13,8 +14,8 @@ class ISMC(SimObject):
     Integral sliding mode control
     """
     def __init__(self, x_b_0: np.ndarray, N: np.ndarray, eps_1: float, eps_2: float,
-                 J: np.ndarray, m: float):
-        super(ISMC, self).__init__()
+                 J: np.ndarray, m: float, **kwargs):
+        super(ISMC, self).__init__(**kwargs)
         self._add_state_vars(x_b=x_b_0)  # initialize the baseline state
         self.N = N.copy()
         self.eps_1 = eps_1
@@ -24,7 +25,7 @@ class ISMC(SimObject):
         self.s = np.zeros(4)
         self.u_f = np.zeros(4)
 
-    def _forward(self, x_d: np.ndarray, x: np.ndarray, eta: np.ndarray, u_b: np.ndarray, delta_hat: np.ndarray) -> np.ndarray:
+    def _forward(self, dyn: MulticopterDyn, x_d: np.ndarray, u_b: np.ndarray, delta_hat: np.ndarray) -> np.ndarray:
         """
         :param x_d: desired state
         :param x: actual state (v_z, p, q, r)
@@ -34,8 +35,9 @@ class ISMC(SimObject):
         :return:
         """
         # update the baseline state
-        phi, theta = eta[0:2]
-        p, q, r = x[1:4]
+        phi, theta = dyn.euler_ang[0:2]
+        p, q, r = dyn.ang_vel[:]
+
         J_x, J_y, J_z = self.J[0, 0], self.J[1, 1], self.J[2, 2]
         f = np.array([
             FlatEarthEnv.grav_accel,
@@ -93,23 +95,19 @@ class Model(SimObject):
         )
 
         # Quadrotor dynamic model
-        m = 1.212
-        J = np.diag([1.0, 8.2, 1.48])*0.01
+        model_params = {'m': 1.212, 'J': np.diag([1.0, 8.2, 1.48])*0.01}
 
-        pos_0 = np.array([0., 1., -1.])
-        vel_0 = np.zeros(3)
-        R_iv_0 = np.identity(3)
-        omega_0 = np.zeros(3)
-        self.quadrotor_dyn = MulticopterDynamic([pos_0, vel_0, R_iv_0, omega_0], m, J)
+        self.dyn = MulticopterDyn(p_0=np.array([0., 1., -1.]), v_0=np.zeros(3), R_0=np.identity(3), omega_0=np.zeros(3),
+                                  **model_params, name='dynamic model')
 
         # Quadrotor thrust model (QuadX configuration)
         d_phi = 0.15
         d_theta = 0.13
         c_tau_f = 0.02
-        self.quadrotor_thrust = QuadXThrustModel(d_phi, d_theta, c_tau_f)
+        self.effector = QuadXEffector(d_phi, d_theta, c_tau_f)
 
         # Quadrotor actuator mixer
-        self.quadrotor_mixer = QuadXMixer(d_phi, d_theta, c_tau_f)
+        self.mixer = QuadXMixer(d_phi, d_theta, c_tau_f)
 
         # Actuator fault model
         self.actuator_fault = ActuatorFault(
@@ -137,78 +135,77 @@ class Model(SimObject):
             Q=np.diag([1., 1., 1., 0.1, 0.1, 0.1])**2,
             R=np.identity(3)
         )
-        self.att_control = QuaternionAttControl(J, K_att)
-        self.pos_control = QuaternionPosControl(m, K_pos)
+        self.att_control = QuaternionAttControl(model_params['J'], K_att)
+        self.pos_control = QuaternionPosControl(model_params['m'], K_pos)
 
         # Fixed-Time Fault Estimator
-        v_z_0 = vel_0[2]
-        p_0, q_0, r_0 = omega_0[:]
+        v_z_0 = 0.
+        p_0, q_0, r_0 = 0., 0., 0.
         z_1_0 = np.array([v_z_0, p_0, q_0, r_0])
         z_2_0 = np.zeros(4)
 
         self.estimator = FixedTimeFaultEstimator(
             initial_states=[z_1_0, z_2_0],
-            alpha=0.733, beta=1.285, k_1=20., k_2=100.,
-            m=m, J=J
+            alpha=0.733, beta=1.285, k_1=20., k_2=100., **model_params
         )
 
         # Integral Sliding Mode Controller
         self.ismc = ISMC(
-            x_b_0=np.zeros(4), N=np.diag([1., 1., 1., 1.]), eps_1=0.5, eps_2=2.5, J=J, m=m)
+            x_b_0=np.zeros(4), N=np.diag([1., 1., 1., 1.]), eps_1=0.5, eps_2=2.5, **model_params)
 
         self._add_sim_objs([
             self.pos_trajectory, self.vel_trajectory,
-            self.quadrotor_dyn, self.actuator_fault, self.att_control, self.pos_control,
+            self.dyn, self.actuator_fault, self.att_control, self.pos_control,
             self.estimator, self.ismc])
 
     def forward(self) -> None:
         p_d = self.pos_trajectory.forward()
         v_d = self.vel_trajectory.forward()
 
-        p = self.quadrotor_dyn.pos
-        v = self.quadrotor_dyn.vel
-        q = self.quadrotor_dyn.quaternion
-        omega = self.quadrotor_dyn.ang_vel
-
         # Baseline control (position)
-        F_m, q_d, omega_d = self.pos_control.forward(p, v, p_d, v_d)
+        F_m, q_d, omega_d = self.pos_control.forward(self.dyn, p_d, v_d)
 
         # Baseline control (attitude)
-        M = self.att_control.forward(q, omega, q_d, omega_d)
+        M = self.att_control.forward(self.dyn, q_d, omega_d)
         u_b = np.array([F_m, M[0], M[1], M[2]])
 
         # Uncertainty compensation
         v_z_d = v_d[2]
-        v_z = v[2]
         x_d = np.array([v_z_d, omega_d[0], omega_d[1], omega_d[2]])
-        x = np.array([v_z, omega[0], omega[1], omega[2]])
-        eta = self.quadrotor_dyn.euler_ang
+
         delta_hat = self.estimator.delta_hat
-        u_f = self.ismc.forward(x_d, x, eta, u_b, delta_hat)
+        u_f = self.ismc.forward(self.dyn, x_d, u_b, delta_hat)
         u = u_b + u_f
 
         # actuator fault
-        f_s = self.quadrotor_mixer.convert(u)
+        f_s = self.mixer.convert(f=u[0], tau=u[1:4])
         f_s_star = self.actuator_fault.forward(f_s)
-        u_star = self.quadrotor_thrust.convert(f_s_star)
-        self.quadrotor_dyn.forward(u=u_star)
+        u_star = self.effector.convert(f_s_star)
+        self.dyn.forward(**u_star)
 
         # Fault estimation
+        v_z = self.dyn.vel[2]
+        p, q, r = self.dyn.ang_vel[:]
+        x = np.array([v_z, p, q, r])
+        eta = self.dyn.euler_ang
+
         self.estimator.forward(x=x, eta=eta, u=u)
 
         # true uncertainty
-        m = self.quadrotor_dyn.m
-        J = self.quadrotor_dyn.J
+        m = self.dyn.m
+        J = self.dyn.J
         J_x, J_y, J_z = J[0, 0], J[1, 1], J[2, 2]
 
         phi, theta = eta[0:2]
         B = np.diag([
             -np.cos(phi)*np.cos(theta)/m, 1./J_x, 1./J_y, 1./J_z
         ])
-        delta = B.dot(u_star - u)
+        f_star = u_star['f']
+        tau_star = u_star['tau']
+        delta = B.dot(np.array([f_star, tau_star[0], tau_star[1], tau_star[2]]) - u)
 
         self._logger.append(t=self.time, f_s=f_s, f_s_star=f_s_star,
-                            delta=delta, delta_hat=delta_hat, p_d=p_d, p=p)
+                            delta=delta, delta_hat=delta_hat, p_d=p_d, p=self.dyn.pos)
 
     def plot_actuator_log(self, show=False):
         t = self.history('t')
