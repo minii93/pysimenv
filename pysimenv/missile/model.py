@@ -194,9 +194,10 @@ class PlanarMissile(PlanarVehicle):
 
     # implement
     def _forward(self, a_M_cmd: float):
-        a = self.kin.vel_to_inertial(np.array([0., a_M_cmd]))
+        a_M = np.clip(a_M_cmd, self.acc_limit[0], self.acc_limit[1])
+        a = self.kin.vel_to_inertial(np.array([0., a_M]))
         self.kin.forward(a=a)
-        self._logger.append(t=self.time, V=self.V, gamma=self.gamma)
+        self._logger.append(t=self.time, V=self.V, gamma=self.gamma, a_M_cmd=a_M_cmd, a_M=a_M)
 
     # implement
     def _check_stop_condition(self) -> bool:
