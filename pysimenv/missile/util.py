@@ -83,10 +83,12 @@ def miss_distance(p_M: np.ndarray, p_T: np.ndarray, search_range: int = 1) -> fl
     num_sample = p_M.shape[0]
     d = np.linalg.norm(p_T - p_M, axis=1)
     index_c = np.argmin(d)
-    d_miss = d[index_c]
 
     index_min = max(index_c - search_range, 0)
     index_max = min(index_c + search_range, num_sample - 1)
+
+    # initialization
+    d_miss = d[index_min]
     for i in range(index_min, index_max):
         p0 = p_M[i, :]
         p1 = p_M[i + 1, :]
@@ -102,13 +104,14 @@ def closest_instant(p_M: np.ndarray, p_T: np.ndarray, search_range: int = 1) -> 
     num_sample = p_M.shape[0]
     d = np.linalg.norm(p_T - p_M, axis=1)
     index_c = np.argmin(d)
-    d_miss = d[index_c]
 
     index_min = max(index_c - search_range, 0)
     index_max = min(index_c + search_range, num_sample - 1)
 
+    # initialize
     index_close = index_min
     xi_close = 0.
+    d_miss = d[index_close]
     for i in range(index_min, index_max):
         p0 = p_M[i, :]
         p1 = p_M[i + 1, :]

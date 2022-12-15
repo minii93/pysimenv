@@ -180,12 +180,13 @@ class PlanarMissile(PlanarVehicle):
     FLAG_STALLED = 1
     FLAG_COLLIDED = 2
 
-    def __init__(self, p_0: ArrayType, V_0: float, gamma_0: float, name="missile", **kwargs):
+    def __init__(self, p_0: ArrayType, V_0: float, gamma_0: float, acc_limit=np.array([-np.inf, np.inf]),
+                 name="missile", **kwargs):
         v_0 = np.array([V_0*np.cos(gamma_0), V_0*np.sin(gamma_0)])
         kin = PlanarKin(p_0=p_0, v_0=v_0)
         super(PlanarMissile, self).__init__(kin=kin, name=name, **kwargs)
         self.fov_limit = np.inf  # Field-of-view limit
-        self.acc_limit = np.array([-np.inf, np.inf])  # Acceleration limit
+        self.acc_limit = acc_limit  # Acceleration limit
         self.ground_elev = -np.inf  # Ground elevation
 
     def look_angle(self, lam: float):
@@ -272,6 +273,8 @@ class PlanarMissileWithPitch(PlanarMissile):
         return sigma
 
     def _forward(self, a_M_cmd: float):
+        a_M_cmd = np.clip(a_M_cmd, self.acc_limit[0], self.acc_limit[1])
+        
         delta = self.act_dyn.output
         q = self.pitch_dyn.output[2]
         a_L = self.pitch_dyn.lift_accel(delta)
@@ -284,7 +287,7 @@ class PlanarMissileWithPitch(PlanarMissile):
         a = self.pitch_dyn.body_to_vel(np.array([0., a_L]))
         a = self.kin.vel_to_inertial(a)
         self.kin.forward(a=a)
-        self._logger.append(t=self.time, V=self.V, gamma=self.gamma)
+        self._logger.append(t=self.time, V=self.V, gamma=self.gamma, a_M_cmd=a_M_cmd, a_M=a_L)
 
 
 class PlanarMovingTarget(PlanarVehicle):
