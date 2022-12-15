@@ -404,6 +404,111 @@ class StaticObject(SimObject):
         return self.eval_fun(*args, **kwargs)
 
 
+class DiscreteTimeObject(SimObject):
+    def __init__(self,  interval: float, name: str = 'discreteTimeObject', **kwargs):
+        super(DiscreteTimeObject, self).__init__(interval=interval, name=name)
+        self.interval = interval
+
+    # override
+    def _add_state_vars(self, **kwargs):
+        if kwargs:
+            for name, initial_state in kwargs.items():
+                if isinstance(initial_state, float):
+                    initial_state = np.array([initial_state])
+                var = StateVariable(initial_state)
+                self.state_vars[name] = var
+
+    # override
+    def _add_sim_objs(self, objs: Union['SimObject', list, tuple]):
+        if isinstance(objs, SimObject):
+            objs = [SimObject]
+
+        for obj in objs:
+            if not isinstance(obj, DiscreteTimeObject):
+                raise ValueError('Only an instance of DiscreteTimeSystem can be added.')
+            if obj in self.sim_objs:
+                continue
+            self.sim_objs.append(obj)
+
+    # override
+    def forward(self, *args, **kwargs) -> Union[None, float, np.ndarray, dict]:
+        self._timer.forward()
+        if self._timer.is_event and self._sim_clock.major_time_step:
+            self._last_output = self._forward(*args, **kwargs)
+
+        return self._last_output
+
+    def _check_stop_condition(self, *args, **kwargs) -> Optional[bool]:
+        pass
+
+    # should be implemented
+    def _forward(self, *args, **kwargs) -> Union[None, float, np.ndarray, dict]:
+        raise NotImplementedError
+
+    # override
+    def default_plot(self, show=False, var_keys: list = None, var_names: dict = None):
+        if var_keys is None:
+            var_keys = list(self._logger.keys())
+            var_keys.remove('t')
+        if var_names is None:
+            var_names = dict()
+
+        vars_num = len(var_keys)
+
+        time_log = self.history('t')
+        var_logs = dict()
+        max_dim = 1
+        for var_key in var_keys:
+            var_log = self.history(var_key)
+            if var_log.ndim == 1:
+                var_log = np.reshape(var_log, var_log.shape + (1,))
+            var_logs[var_key] = var_log
+            max_dim = max(max_dim, var_log.shape[1])
+
+        fig, ax = plt.subplots(max_dim, vars_num, figsize=(3.2*vars_num, 2.7*max_dim))
+        for j, var_key in enumerate(var_keys):
+            var_log = var_logs[var_key]
+            if var_key in var_names:
+                var_name = var_names[var_key]
+            else:
+                var_name = var_key
+
+            for i in range(var_log.shape[1]):
+                ax[i, j].step(time_log, var_log[:, i], label="Actual")
+                ax[i, j].set_xlabel("Time (s)")
+                ax[i, j].set_ylabel(var_name + "_" + str(i))
+                ax[i, j].grid()
+            fig.suptitle("Time histories of the variables in {:s}".format(self.name))
+            fig.tight_layout()
+
+        if show:
+            plt.show()
+        else:
+            plt.draw()
+            plt.pause(0.01)
+
+        return fig, ax
+
+
+class DiscreteTimeDynSystem(DiscreteTimeObject):
+    def __init__(self, initial_states: Dict[str, ArrayType], **kwargs):
+        super(DiscreteTimeDynSystem, self).__init__(**kwargs)
+        self._add_state_vars(**initial_states)
+
+    # implement
+    def _forward(self, **kwargs) -> Union[None, float, np.ndarray, dict]:
+        states = self._get_states()
+        next_states = self._update(**states, **kwargs)
+
+        self.set_state(**next_states)
+        self._logger.append(t=self.time, **states, **kwargs)
+        return next_states
+
+    # should be implemented
+    def _update(self, *args, **kwargs) -> Union[None, float, np.ndarray, dict]:
+        raise NotImplementedError
+
+
 class DynSystem(SimObject):
     def __init__(self, initial_states: Dict[str, ArrayType], deriv_fun=None, output_fun=None, **kwargs):
         """ initial_states: dictionary of (state1, state2, ...) """
