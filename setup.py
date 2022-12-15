@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="pysimenv",
-    version="0.0.19",
+    version="0.0.20",
     author="Sangmin Lee",
     author_email="everlastingminii@gmail.com",
     description="A framework for performing numerical simulation of dynamic systems",
