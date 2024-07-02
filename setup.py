@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="pysimenv",
-    version="0.0.20",
+    version="0.0.22",
     author="Sangmin Lee",
     author_email="everlastingminii@gmail.com",
     description="A framework for performing numerical simulation of dynamic systems",
@@ -25,5 +25,6 @@ setuptools.setup(
         'matplotlib',
         'h5py',
         'pytictoc',
+        'ray',
     ]
 )
